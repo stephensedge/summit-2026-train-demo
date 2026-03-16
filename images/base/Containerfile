@@ -1,0 +1,10 @@
+FROM registry.redhat.io/ubi9:latest
+
+# Args for RHSM
+ARG RHSM_ORG
+ARG RHSM_AK
+
+# Provide access to RHSM content
+RUN subscription-manager register \
+    --org "${RHSM_ORG}" \
+    --activationkey "${RHSM_AK}"
