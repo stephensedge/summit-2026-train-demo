@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dhcp
+resources:
+  - manifests/namespace.yaml
+  - manifests/serviceaccount.yaml
+  - manifests/clusterrole.yaml
+  - manifests/scc.yaml
+  - manifests/rolebinding.yaml
+  - manifests/configmap.yaml
+  - manifests/service.yaml
+  - manifests/pod.yaml
+
