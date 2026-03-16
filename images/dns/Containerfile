@@ -1,0 +1,18 @@
+FROM localhost/registered-base:latest
+
+# Install bind
+RUN dnf -y install \
+    bind \
+    bind-utils && \ 
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Cleanup subman
+RUN subscription-manager clean && \
+    rm -rf /var/lib/rhsm /var/log/rhsm
+
+# Expose it
+EXPOSE 53/tcp
+EXPOSE 53/udp
+
+CMD ["/usr/sbin/named", "-g", "-u", "named", "-c", "/etc/named/named.conf"]
