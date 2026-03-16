@@ -1,0 +1,138 @@
+FROM registry.redhat.io/openshift4/microshift-bootc-rhel9:v4.20
+
+# Unset proxy env vars
+ENV NO_PROXY=
+ENV HTTP_PROXY=
+ENV HTTPS_PROXY=
+
+RUN dnf -y clean all && \
+    rm -rf /etc/yum.repos.d/unsigned.repo
+RUN rm -rf /etc/rhsm-host
+
+# Args for RHSM
+ARG RHSM_ORG
+ARG RHSM_AK
+
+# Provide access to RHSM content
+RUN subscription-manager register \
+    --org "${RHSM_ORG}" \
+    --activationkey "${RHSM_AK}"
+
+# Install workstation packages
+RUN dnf -y groupinstall Workstation \
+    && dnf clean all \
+    && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+# Install additional system packages
+RUN dnf \
+    --enablerepo=rhel-9-for-x86_64-baseos-rpms \
+    --enablerepo=rhel-9-for-x86_64-appstream-rpms \
+    --enablerepo=rhocp-4.20-for-rhel-9-x86_64-rpms \
+    --enablerepo=gitops-1.19-for-rhel-9-x86_64-rpms \
+    --enablerepo=fast-datapath-for-rhel-9-x86_64-rpms \
+    install -y \
+    podman \
+    vim-enhanced \
+    NetworkManager-wifi \
+    systemd-container \
+    git \
+    skopeo \
+    lorax \
+    ansible-core \
+    cockpit \
+    lvm2 \
+    butane \
+    nmstate \
+    jq \
+    && dnf clean all \
+    && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+# Install Microshift additional packages
+RUN dnf \
+    --enablerepo=rhel-9-for-x86_64-baseos-rpms \
+    --enablerepo=rhel-9-for-x86_64-appstream-rpms \
+    --enablerepo=rhocp-4.20-for-rhel-9-x86_64-rpms \
+    --enablerepo=gitops-1.19-for-rhel-9-x86_64-rpms \
+    --enablerepo=fast-datapath-for-rhel-9-x86_64-rpms \
+    install -y \
+    openshift-clients \
+    runc \
+    microshift-olm \
+    && dnf clean all \
+    && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+RUN dnf \
+    install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+    && dnf clean all \
+    && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+RUN dnf \
+    install -y \
+    rdesktop \
+    helm \
+    btop \
+    https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_linux_amd64.rpm \
+    && dnf clean all \
+    && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+# RUN dnf \
+#     remove -y epel-release-latest-9 \
+#     && dnf clean all \
+#     && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
+
+# Args for Microshift and Openshift
+ARG PULL_SECRET
+
+# Add the overlays
+ADD overlay/ /
+
+# Microshift setup
+RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
+RUN chmod 0600 /etc/crio/openshift-pull-secret
+RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
+    firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
+    firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
+RUN podman pull $(jq -r '.images | .[]' /usr/share/microshift/release/release-x86_64.json) --authfile /etc/crio/openshift-pull-secret --storage-opt ignore_chown_errors=true
+RUN systemctl enable microshift-make-rshared.service
+
+# DNS
+RUN podman load --input /tmp/images/dns.tar --storage-opt ignore_chown_errors=true
+
+# DHCP
+RUN podman load --input /tmp/images/dhcp.tar --storage-opt ignore_chown_errors=true
+RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/manifests.d/dhcp/manifests/configmap.yaml
+
+# Bootstrap networking
+ARG EXTERNAL_INTERFACE
+ARG INTERNAL_INTERFACE
+
+RUN chmod +x /usr/local/bin/setup-network.sh
+RUN sed -i "s/EXTERNAL_INTERFACE/${EXTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
+RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
+RUN systemctl enable setup-network.service
+
+# ## Storage setup
+# COPY setup-storage.sh /usr/local/bin/setup-storage.sh
+# RUN chmod +x /usr/local/bin/setup-storage.sh
+# COPY setup-storage.service /etc/systemd/system/storage-setup.service
+# RUN systemctl enable storage-setup.service
+
+## Set graphical target
+RUN systemctl set-default graphical.target
+RUN systemctl enable cockpit.socket
+
+# Set hostname
+RUN echo "${HOSTNAME}" > /etc/hostname
+
+# Helper scripts
+RUN chmod +x /usr/local/bin/get-microshift-kubeconfig.sh
+
+# Cleanup
+RUN subscription-manager clean
+RUN rm -rf /var/lib/rhsm /var/log/rhsm
+
+# Disable auto-updating
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
+# Lint the build
+#RUN bootc container lint
