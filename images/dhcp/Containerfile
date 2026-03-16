@@ -1,0 +1,14 @@
+FROM localhost/registered-base:latest
+
+RUN dnf -y install dhcp-server && \
+    dnf clean all
+
+RUN subscription-manager clean && \
+    rm -rf /var/lib/rhsm /var/log/rhsm
+
+RUN touch /var/lib/dhcpd/dhcpd.leases && \
+    chown dhcpd:dhcpd /var/lib/dhcpd/dhcpd.leases
+
+EXPOSE 67/udp
+
+CMD ["/usr/sbin/dhcpd", "-f", "-d", "--no-pid", "-user", "dhcpd", "-group", "dhcpd", "-cf", "/etc/dhcp/dhcpd.conf"]
