@@ -29,6 +29,7 @@ spec:
       containers:
         - name: dns
           image: localhost/dns:latest
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:
