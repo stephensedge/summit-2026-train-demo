@@ -2,3 +2,4 @@ gateway-builds/bootc/output/
 in-development/
 hold/
 ignore/
+*.tar
