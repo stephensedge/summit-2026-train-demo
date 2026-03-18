@@ -1,1 +1,4 @@
+---
+ovsInit:
+  gatewayInterface: "INTERNAL_INTERFACE"
 mtu: 1300
