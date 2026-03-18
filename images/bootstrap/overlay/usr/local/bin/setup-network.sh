@@ -35,12 +35,12 @@ bring_down_if_up "EXTERNAL_INTERFACE"
 bring_down_if_up "lan"
 
 # Modify or create connections
-retry "nmcli connection modify EXTERNAL_INTERFACE connection.zone external ipv4.dhcp-send-hostname no ipv6.dhcp-send-hostname no ipv4.dhcp-hostname ipc4 ipv4.dhcp-hostname ipc4 || true"
+retry "nmcli connection modify EXTERNAL_INTERFACE connection.zone external ipv4.dhcp-send-hostname no ipv6.dhcp-send-hostname no ipv4.dhcp-hostname bootstrap ipv4.dhcp-hostname bootstrap || true"
 
 # Add LAN connection if it doesn't exist
 if ! nmcli -t -f NAME con show | grep -qx "lan"; then
   echo "Creating new 'lan' connection..."
-  retry "nmcli connection add type ethernet ifname INTERNAL_INTERFACE con-name lan ipv4.addresses 192.168.100.1/24 ipv4.dns 192.168.100.1 ipv4.dns-search sps2025.com ipv4.method manual connection.zone trusted"
+  retry "nmcli connection add type ethernet ifname INTERNAL_INTERFACE con-name lan ipv4.addresses 192.168.100.1/24 ipv4.dns 192.168.100.1 ipv4.dns-search summit2026.com ipv4.method manual connection.zone trusted"
 else
   echo "'lan' connection already exists, skipping add."
 fi
