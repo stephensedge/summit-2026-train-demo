@@ -7,13 +7,16 @@ COMPONENT_IMGS        := $(foreach component,$(COMPONENTS),localhost/$(component
 BUILD_TARGETS  := $(addprefix build-, $(COMPONENTS))
 EXPORT_TARGETS := $(addprefix export-, $(COMPONENTS))
 
-EXPORT_DIR     ?= ./images/bootstrap/overlay/tmp/images
+EXPORT_DIR     ?= ./images/bootstrap/overlay/usr/lib/container-images
 BUILD_ARG_FILE ?= ./ignore/build-args.txt
 
-# --- Targets ---
-.PHONY: all clean build-bootstrap build-all export-all
+KICKSTART	   ?= ./kickstarts/default.ks
+RHEL_BOOT_ISO  ?= ./rhel-9.6-x86_64-boot.iso
 
-all: build-bootstrap
+# --- Targets ---
+.PHONY: all clean build-bootstrap build-all export-all create-boostrap-install-iso
+
+all: create-boostrap-install-iso
 
 $(EXPORT_DIR):
 	mkdir -p $(EXPORT_DIR)
@@ -49,8 +52,18 @@ build-bootstrap: export-all
 	--build-arg-file $(BUILD_ARG_FILE) \
 	./images/bootstrap/
 
+create-bootstrap-install-iso:
+	@echo "==> Building installer ISO..."
+    bash ./scripts/create-iso.sh \
+	localhost/bootstrap:latest \
+	$(KICKSTART) \
+	$(RHEL_BOOT_ISO) \
+	./install-bootstrap.iso
+
 clean:
 	@echo "==> Cleaning up exports..."
 	rm -rf $(EXPORT_DIR)/*.tar
 	@echo "==> Deleting images..."
 	podman rmi -f $(COMPONENT_IMGS) $(BOOTSTRAP_IMG) localhost/registered-base:latest
+	@echo "==> Cleaning up ISO..."
+	rm -f install-bootstrap.iso
