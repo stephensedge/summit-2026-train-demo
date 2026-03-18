@@ -29,6 +29,7 @@ spec:
       containers:
         - name: dhcp
           image: localhost/dhcp:latest 
+          imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           ports:

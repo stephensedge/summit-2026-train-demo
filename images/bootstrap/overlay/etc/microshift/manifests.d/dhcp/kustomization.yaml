@@ -10,5 +10,5 @@ resources:
   - manifests/rolebinding.yaml
   - manifests/configmap.yaml
   - manifests/service.yaml
-  - manifests/pod.yaml
+  - manifests/statefulset.yaml
 
