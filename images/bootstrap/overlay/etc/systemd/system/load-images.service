@@ -1,0 +1,13 @@
+[Unit]
+Description=Import Pre-cached Container Images into Podman
+ConditionPathExistsGlob=/usr/lib/container-images/*.tar
+Before=microshift.service
+After=network.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/load-images.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
