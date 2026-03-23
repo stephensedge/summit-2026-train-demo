@@ -1,0 +1,904 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+data:
+  agent-config.yaml: |
+    ---
+    apiVersion: v1beta1
+    kind: AgentConfig
+    metadata:
+      name: acp
+    rendezvousIP: NODE0_IP_ADDRESS
+    hosts:
+      - hostname: node0
+        role: master
+        interfaces:
+          - name: NODE0_CLUSTER_INTERFACE
+            macAddress: NODE0_CLUSTER_INTERFACE_MAC_ADDRESS
+        rootDeviceHints:
+          wwn: NODE0_INSTALL_DEVICE
+        networkConfig:
+          interfaces:
+          - name: NODE0_CLUSTER_INTERFACE
+            type: ethernet
+            state: up
+            mac-address: NODE0_CLUSTER_INTERFACE_MAC_ADDRESS
+            ipv4:
+              enabled: true
+              address:
+                - ip: NODE0_IP_ADDRESS
+                  prefix-length: 24
+              dhcp: false
+          - name: NODE0_STORAGE_INTERFACE
+            type: ethernet
+            state: down
+          dns-resolver:
+            config:
+              server:
+                - ACP_DNS_SERVER
+          routes:
+            config:
+              - destination: 0.0.0.0/0
+                next-hop-address: ACP_ROUTER_ADDRESS
+                next-hop-interface: NODE0_CLUSTER_INTERFACE
+                table-id: 254
+      - hostname: node1
+        role: master
+        interfaces:
+          - name: NODE1_CLUSTER_INTERFACE
+            macAddress: NODE1_CLUSTER_INTERFACE_MAC_ADDRESS
+        rootDeviceHints:
+          wwn: NODE1_INSTALL_DEVICE
+        networkConfig:
+          interfaces:
+          - name: NODE1_CLUSTER_INTERFACE
+            type: ethernet
+            state: up
+            mac-address: NODE1_CLUSTER_INTERFACE_MAC_ADDRESS
+            ipv4:
+              enabled: true
+              address:
+                - ip: NODE1_IP_ADDRESS
+                  prefix-length: 24
+              dhcp: false
+          - name: NODE1_STORAGE_INTERFACE
+            type: ethernet
+            state: down
+          dns-resolver:
+            config:
+              server:
+                - ACP_DNS_SERVER
+          routes:
+            config:
+              - destination: 0.0.0.0/0
+                next-hop-address: ACP_ROUTER_ADDRESS
+                next-hop-interface: NODE1_CLUSTER_INTERFACE
+                table-id: 254
+      - hostname: arbiter
+        role: arbiter
+        interfaces:
+          - name: ARBITER_CLUSTER_INTERFACE
+            macAddress: ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS
+        rootDeviceHints:
+          wwn: ARBITER_INSTALL_DEVICE
+        networkConfig:
+          interfaces:
+          - name: ARBITER_CLUSTER_INTERFACE
+            type: ethernet
+            state: up
+            mac-address: ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS
+            ipv4:
+              enabled: true
+              address:
+                - ip: ARBITER_IP_ADDRESS
+                  prefix-length: 24
+              dhcp: false
+          - name: ARBITER_STORAGE_INTERFACE
+            type: ethernet
+            state: down
+          dns-resolver:
+            config:
+              server:
+                - ACP_DNS_SERVER
+          routes:
+            config:
+              - destination: 0.0.0.0/0
+                next-hop-address: ACP_ROUTER_ADDRESS
+                next-hop-interface: ARBITER_CLUSTER_INTERFACE
+                table-id: 254
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: install-config
+data:
+  install-config.yaml: |
+    ---
+    apiVersion: v1
+    baseDomain: BASE_DNS_ZONE
+    compute:
+    - architecture: amd64
+      hyperthreading: Enabled
+      name: worker
+      replicas: 0
+    controlPlane:
+      architecture: amd64
+      hyperthreading: Enabled
+      name: master
+      replicas: 2
+    arbiter:
+      architecture: amd64
+      hyperthreading: Enabled
+      replicas: 1
+      name: arbiter
+    metadata:
+      name: acp
+    networking:
+      clusterNetwork:
+      - cidr: 10.128.0.0/14
+        hostPrefix: 22
+      machineNetwork:
+      - cidr: 192.168.107.0/24
+      networkType: OVNKubernetes 
+      serviceNetwork:
+      - 172.30.0.0/16
+    platform:
+      baremetal:
+        apiVIPs:
+          - ACP_API_IP
+        ingressVIPs:
+          - ACP_INGRESS_IP
+    pullSecret: 'PULL_SECRET' 
+    sshKey: 'SSH_KEY'
+    cpuPartitioningMode: AllNodes
+    capabilities:
+      baselineCapabilitySet: None
+      additionalEnabledCapabilities:
+        - baremetal
+        - Console
+        - ImageRegistry
+        - Storage
+        - Ingress
+        - NodeTuning
+        - OperatorLifecycleManager
+        - marketplace
+    imageContentSources:
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift-gitops-1
+        source: registry.redhat.io/openshift-gitops-1
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift4
+        source: registry.redhat.io/openshift4
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhel9
+        source: registry.redhat.io/rhel9
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift/release
+        source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift/release-images
+        source: quay.io/openshift-release-dev/ocp-release
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/ubi9
+        source: registry.access.redhat.com/ubi9
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhem
+        source: registry.redhat.io/rhem
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/portworx
+        source: docker.io/portworx
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift4
+        source: registry.redhat.io/openshift4
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhacm2
+        source: registry.redhat.io/rhacm2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-ocp-pxe-boot-files
+data:
+  create-ocp-pxe-boot-files.yaml: |
+    ---
+    - name: Create OpenShift pxe-boot files and setup tftp/pubsrv
+      hosts:
+        - localhost
+      gather_facts: false
+      connection: local
+      vars:
+        create_dir: "/tmp/install"
+        input_dir: "/tmp/input"
+        output_dir: "/tmp/output"
+        pxe_resources: "/tmp/pxe-resources"
+      pre_tasks:
+        - name: Check that this hasn't already been run
+          ansible.builtin.stat:
+            path: /pubsrv/auth/kubeconfig
+          register: _install_status
+      tasks:
+        - name: Create install resources
+          when:
+            - not _install_status.stat.exists
+          block:
+          - name: Get registry cert
+            ansible.builtin.shell:
+              cmd: oc get secret harbor-nginx -n registry -o yaml | grep tls.crt | awk '{print $2}'
+            register: _router_cert_raw
+            changed_when: false
+          - name: Extract tls.crt value
+            set_fact:
+              _router_tls_crt: "{{ _router_cert_raw.stdout | b64decode }}"
+          - name: Slurp up install-config
+            ansible.builtin.slurp:
+              path: "{{ input_dir }}/install-config.yaml"
+            register: _install_config
+          - name: Convert install-config to yaml
+            ansible.builtin.set_fact:
+              _install_config_yaml: "{{ _install_config['content'] | b64decode | from_yaml }}"
+          - name: Extract pull secret
+            ansible.builtin.set_fact:
+              _pull_secret: "{{ _install_config_yaml.pullSecret | from_json }}"
+          - name: Construct bootstrap registry auth info
+            ansible.builtin.set_fact:
+              _new_registry_auth:
+                auths:
+                  'registry-registry.apps.bootstrap.BASE_DNS_ZONE:443':
+                    auth: "{{ (admin ~ ':' ~ REGISTRY_ADMIN_PASSWORD) | b64encode }}"
+          - name: Append local registry auth info
+            ansible.builtin.set_fact:
+              _appended_pull_secret: >-
+                {{
+                  {
+                    'auths': _pull_secret.auths | default({}) | combine(_new_registry_auth.auths, recursive=True)
+                  }
+                }}
+          - name: Update pull secret in install-config data
+            ansible.builtin.set_fact:
+              _new_install_config: "{{ _install_config_yaml | combine({'pullSecret': _appended_pull_secret | to_json}) }}"
+          - name: Write out new install-config
+            ansible.builtin.copy:
+              content: "{{ _new_install_config | to_nice_yaml }}"
+              dest: "{{ create_dir }}/install-config.yaml"
+          - name: Copy agent config 
+            ansible.builtin.copy:
+              src: "{{ input_dir }}/agent-config.yaml"
+              dest: "{{ create_dir }}/agent-config.yaml"
+              remote_src: true
+          - name: Add additional trust bundle
+            ansible.builtin.blockinfile:
+              path: "{{ create_dir }}/install-config.yaml"
+              insertafter: EOF
+              block: |
+                additionalTrustBundle: |
+                  {{ _router_tls_crt | indent(width=2) }}
+          - name: Create directory for additional manifests
+            ansible.builtin.file:
+              path: "{{ create_dir }}/openshift"
+              state: directory
+          - name: Copy additional manifests to {{ create_dir }}/openshift
+            ansible.builtin.copy:
+              src: "{{ file }}"
+              dest: "{{ create_dir }}/openshift/{{ file.split('/')[-1] }}"
+              remote_src: true
+            with_fileglob:
+              - "{{ input_dir }}/additional-manifests/*.yaml"
+            loop_control:
+              loop_var: file
+          - name: Print out contents of {{ create_dir }}
+            ansible.builtin.shell:
+              cmd: "ls -lsaht {{ create_dir }}"
+            changed_when: false
+          - name: Generate install media
+            ansible.builtin.shell:
+              cmd: "{{ create_dir }}/openshift-install --dir {{ create_dir }} agent create pxe-files --log-level debug"
+          - name: Copy pxe resources to /tftpboot
+            ansible.builtin.copy:
+              src: "{{ file }}"
+              dest: "/tftpboot/{{ file.split('/')[-1] }}"
+              remote_src: true
+            loop:
+              - "{{ pxe_resources }}/grub.cfg"
+              - "{{ pxe_resources }}/grubx64.efi"
+              - "{{ pxe_resources }}/shimx64.efi"
+              - "{{ create_dir }}/agent.x86_64-initrd.img"
+              - "{{ create_dir }}/agent.x86_64-vmlinuz"
+          - name: Copy pubsrv resources to /pubsrv
+            ansible.builtin.copy:
+              src: "{{ file }}"
+              dest: "/tftpboot/{{ file.split('/')[-1] }}"
+              remote_src: true
+            loop:
+              - "{{ create_dir }}/auth/kubeconfig"
+              - "{{ create_dir }}/auth/kubeadmin-password"
+              - "{{ create_dir }}/agent.x86_64-rootfs.img"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: additional-manifests
+data:
+apiVersion: v1
+data:
+  04-arbiter-machineconfig.yaml: |
+    # Generated by Butane; do not edit
+    apiVersion: machineconfiguration.openshift.io/v1
+    kind: MachineConfig
+    metadata:
+      labels:
+        machineconfiguration.openshift.io/role: arbiter
+      name: 04-arbiter-machineconfig
+    spec:
+      config:
+        ignition:
+          version: 3.5.0
+        storage:
+          disks:
+            - device: /dev/disk/by-id/coreos-boot-disk
+              partitions:
+                - label: root
+                  number: 4
+                  resize: true
+                  sizeMiB: 204800
+                - label: px-metadata
+                  number: 5
+                  sizeMiB: 65536
+                  wipePartitionEntry: true
+        systemd:
+          units:
+            - contents: |-
+                [Unit]
+                Description=Wipe filesystem signatures on raw partitions
+                Before=kubelet.service
+                [Service]
+                Type=oneshot
+                ExecStart=-/usr/sbin/wipefs -af /dev/disk/by-partlabel/px-metadata
+                RemainAfterExit=yes
+                [Install]
+                WantedBy=multi-user.target
+              enabled: true
+              name: wipe-raw-partitions.service
+      kernelArguments:
+        - console=ttyS0,115200n8
+  05-master-machineconfig.yaml: |
+    # Generated by Butane; do not edit
+    apiVersion: machineconfiguration.openshift.io/v1
+    kind: MachineConfig
+    metadata:
+      labels:
+        machineconfiguration.openshift.io/role: master
+      name: 05-master-disk-partitioning
+    spec:
+      config:
+        ignition:
+          version: 3.5.0
+        storage:
+          disks:
+            - device: NODES_STORAGE_DEVICE
+              partitions:
+                - label: px-metadata
+                  number: 1
+                  sizeMiB: 65536
+                  wipePartitionEntry: true
+                - label: px-data
+                  number: 2
+                  wipePartitionEntry: true
+              wipeTable: true
+        systemd:
+          units:
+            - contents: |-
+                [Unit]
+                Description=Wipe filesystem signatures on raw partitions
+                Before=kubelet.service
+                [Service]
+                Type=oneshot
+                ExecStart=-/usr/sbin/wipefs -af /dev/disk/by-partlabel/px-metadata
+                ExecStart=-/usr/sbin/wipefs -af /dev/disk/by-partlabel/px-data
+                RemainAfterExit=yes
+                [Install]
+                WantedBy=multi-user.target
+              enabled: true
+              name: wipe-raw-partitions.service
+      kernelArguments:
+        - console=ttyS0,115200n8
+  06-monitoring.yaml: |
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: cluster-monitoring-config
+      namespace: openshift-monitoring
+    data:
+      config.yaml: |
+        alertmanagerMain:
+          enabled: false
+        telemeterClient:
+          enabled: false
+        prometheusK8s:
+           retention: 24h
+  10-catalogsource.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1alpha1
+    kind: CatalogSource
+    metadata:
+      annotations:
+        createdBy: oc-mirror v2
+      name: cs-redhat-operator-index-v4-20
+      namespace: openshift-marketplace
+    spec:
+      image: registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/redhat/redhat-operator-index:v4.20
+      sourceType: grpc
+  11-clustercatalog.yaml: |
+    ---
+    apiVersion: olm.operatorframework.io/v1
+    kind: ClusterCatalog
+    metadata:
+      annotations:
+        createdBy: oc-mirror v2
+      name: cc-redhat-operator-index-v4-20
+    spec:
+      priority: 0
+      source:
+        image:
+          ref: registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/redhat/redhat-operator-index:v4.20
+        type: Image
+  100-portworx-namespace.yaml: |
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: portworx
+  101-portworx-subscription.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1alpha1
+    kind: Subscription
+    metadata:
+      labels:
+        operators.coreos.com/portworx-certified.openshift-operators: ""
+      name: portworx-certified
+      namespace: openshift-operators
+    spec:
+      channel: stable
+      installPlanApproval: Automatic
+      name: portworx-certified
+      source: certified-operators
+      sourceNamespace: openshift-marketplace
+      startingCSV: portworx-operator.v25.6.1
+  400-nmstate-namespace.yaml: |
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      labels:
+        kubernetes.io/metadata.name: openshift-nmstate
+        name: openshift-nmstate
+      name: openshift-nmstate
+    spec:
+      finalizers:
+      - kubernetes
+  401-nmstate-operatorgroup.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1
+    kind: OperatorGroup
+    metadata:
+      annotations:
+        olm.providedAPIs: NMState.v1.nmstate.io
+      name: openshift-nmstate
+      namespace: openshift-nmstate
+    spec:
+      targetNamespaces:
+      - openshift-nmstate
+  402-nmstate-subscription.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1alpha1
+    kind: Subscription
+    metadata:
+      labels:
+        operators.coreos.com/kubernetes-nmstate-operator.openshift-nmstate: ""
+      name: kubernetes-nmstate-operator
+      namespace: openshift-nmstate
+    spec:
+      channel: stable
+      installPlanApproval: Automatic
+      name: kubernetes-nmstate-operator
+      source: redhat-operators
+      sourceNamespace: openshift-marketplace
+      startingCSV: kubernetes-nmstate-operator.4.20.0-202602180432
+  600-gitops-namespace.yaml: |
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: openshift-gitops-operator
+      labels:
+        openshift.io/cluster-monitoring: 'true'
+  601-gitops-operatorgroup.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1
+    kind: OperatorGroup
+    metadata:
+      name: openshift-gitops-operator
+      namespace: openshift-gitops-operator
+    spec:
+      upgradeStrategy: Default
+  602-gitops-subscription.yaml: |
+    ---
+    apiVersion: operators.coreos.com/v1alpha1
+    kind: Subscription
+    metadata:
+      name: openshift-gitops-operator
+      namespace: openshift-gitops-operator
+    spec:
+      channel: latest
+      installPlanApproval: Automatic
+      name: openshift-gitops-operator
+      source: redhat-operators
+      sourceNamespace: openshift-marketplace
+      startingCSV: openshift-gitops-operator.v1.19.2
+  603-gitops-rbac.yaml: |
+    ---
+    kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: openshift-gitops-admin
+    subjects:
+      - kind: ServiceAccount
+        name: gitops-service-cluster
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-applicationset-controller
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-application-controller
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-dex-server
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-grafana
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-redis
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-redis-ha
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-argocd-server
+        namespace: openshift-gitops
+      - kind: ServiceAccount
+        name: openshift-gitops-operator-controller-manager
+        namespace: openshift-operators
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+  9900-postinstall-namespace.yaml: |
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: post-install
+  9901-postinstall-serviceaccount.yaml: |
+    ---
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: post-install-sa
+      namespace: post-install
+  9902-postinstall-rbac.yaml: |
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: post-install-sa-crb
+    subjects:
+    - kind: ServiceAccount
+      name: post-install-sa
+      namespace: post-install
+    roleRef:
+      kind: ClusterRole
+      name: cluster-admin
+      apiGroup: rbac.authorization.k8s.io
+  9904-postinall-nmstate: |
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: install-nmstate
+      namespace: post-install
+    spec:
+      template:
+        spec:
+          serviceAccountName: post-install-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: installer
+            image: registry.redhat.io/openshift4/ose-cli:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              #!/bin/bash
+              set -e
+
+              echo "Waiting for NMstate CRD to be available..."
+              timeout=7200
+              interval=10
+              elapsed=0
+              
+              while ! oc get crd nmstates.nmstate.io > /dev/null 2>&1; do
+                if [ $elapsed -ge $timeout ]; then
+                  echo "Timed out waiting for NMstate CRD."
+                  exit 1
+                fi
+                echo "CRD not found yet. Waiting ${interval}s..."
+                sleep $interval
+                elapsed=$((elapsed + interval))
+              done
+
+              echo "NMstate CRD found, applying NMstate..."
+              sleep 10
+              cat <<EOF | oc apply -f -
+              ---
+              apiVersion: nmstate.io/v1
+              kind: NMState
+              metadata:
+                name: nmstate
+              ---
+              apiVersion: nmstate.io/v1
+              kind: NodeNetworkConfigurationPolicy
+              metadata:
+                name: node0-storage-interface
+              spec:
+                nodeSelector:
+                  kubernetes.io/hostname: "node0" 
+                desiredState:
+                  interfaces:
+                    - name: NODE0_STORAGE_INTERFACE
+                      type: ethernet
+                      state: up
+                      ipv4:
+                        address:
+                          - ip: NODE0_STORAGE_IP_ADDRESS
+                            prefix-length: 24
+                        enabled: true
+                        dhcp: false
+              ---
+              apiVersion: nmstate.io/v1
+              kind: NodeNetworkConfigurationPolicy
+              metadata:
+                name: node1-storage-interface
+              spec:
+                nodeSelector:
+                  kubernetes.io/hostname: "node1" 
+                desiredState:
+                  interfaces:
+                    - name: NODE1_STORAGE_INTERFACE
+                      type: ethernet
+                      state: up
+                      ipv4:
+                        address:
+                          - ip: NODE2_STORAGE_IP_ADDRESS
+                            prefix-length: 24
+                        enabled: true
+                        dhcp: false
+              ---
+              apiVersion: nmstate.io/v1
+              kind: NodeNetworkConfigurationPolicy
+              metadata:
+                name: arbiter-storage-interface
+              spec:
+                nodeSelector:
+                  kubernetes.io/hostname: "arbiter" 
+                desiredState:
+                  interfaces:
+                    - name: ARBITER_STORAGE_INTERFACE
+                      type: ethernet
+                      state: up
+                      ipv4:
+                        address:
+                          - ip: ARBITER_STORAGE_IP_ADDRESS
+                            prefix-length: 24
+                        enabled: true
+                        dhcp: false
+              EOF
+
+              echo "NMstate applied successfully."
+              echo "Pinning operator version..."
+
+              oc patch subscription kubernetes-nmstate-operator -n openshift-nmstate --type merge -p '{"spec":{"installPlanApproval":"Manual"}}'
+
+              echo "Operator version pinned."
+
+  9999-postinstall-job: |
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: apply-tuning-and-storage
+      namespace: post-install
+    spec:
+      backoffLimit: 25
+      template:
+        spec:
+          serviceAccountName: post-install-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: apply-manifests
+            image: registry.redhat.io/openshift4/ose-cli:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              # Function to check if all Cluster Operators have settled
+              wait_for_operators() {
+                while true; do
+                  # 1. Check if API is up and operators exist
+                  CO_COUNT=$(oc get clusteroperator -o name 2>/dev/null | wc -l)
+                  CO_COUNT=$(echo $CO_COUNT | xargs)
+                  
+                  if [ "$CO_COUNT" -eq 0 ]; then
+                    echo "API server is down or unreachable. Waiting 15s..."
+                    sleep 15
+                    continue
+                  fi
+
+                  # 2. Count the number of operators in undesirable states
+                  UNAVAILABLE=$(oc get clusteroperator -o jsonpath='{.items[*].status.conditions[?(@.type=="Available")].status}' 2>/dev/null | grep -o "False" | wc -l)
+                  PROGRESSING=$(oc get clusteroperator -o jsonpath='{.items[*].status.conditions[?(@.type=="Progressing")].status}' 2>/dev/null | grep -o "True" | wc -l)
+                  DEGRADED=$(oc get clusteroperator -o jsonpath='{.items[*].status.conditions[?(@.type=="Degraded")].status}' 2>/dev/null | grep -o "True" | wc -l)
+                  
+                  # Trim whitespace
+                  UNAVAILABLE=$(echo $UNAVAILABLE | xargs)
+                  PROGRESSING=$(echo $PROGRESSING | xargs)
+                  DEGRADED=$(echo $DEGRADED | xargs)
+
+                  if [ "$UNAVAILABLE" -eq 0 ] && [ "$PROGRESSING" -eq 0 ] && [ "$DEGRADED" -eq 0 ]; then
+                    echo "All $CO_COUNT Cluster Operators are settled (Available=True, Progressing=False, Degraded=False)."
+                    break
+                  fi
+                  
+                  echo "Operators not yet settled -> Unavailable: $UNAVAILABLE | Progressing: $PROGRESSING | Degraded: $DEGRADED. Waiting 15s..."
+                  sleep 15
+                done
+              }
+
+              echo "Waiting for initial Cluster Operator stabilization..."
+              wait_for_operators
+              
+              echo "Preparing PerformanceProfile manifest..."
+              cat <<EOF > /tmp/tuning.yaml
+              ---
+              apiVersion: performance.openshift.io/v2
+              kind: PerformanceProfile
+              metadata:
+                name: masters-performanceprofile
+                annotations:
+                  kubeletconfig.experimental: |
+                    {"podsPerCore": 0, "maxPods": 500, "systemReserved": {"memory": "2Gi"}}
+              spec:
+                cpu:
+                  isolated: "1-7,9-15"
+                  reserved: "0,8"
+                machineConfigPoolSelector:
+                  pools.operator.machineconfiguration.openshift.io/master: ""
+                nodeSelector:
+                  node-role.kubernetes.io/master: ''
+                numa:
+                  topologyPolicy: "restricted"
+                realTimeKernel:
+                  enabled: false
+                workloadHints:
+                  realTime: false
+                  highPowerConsumption: false
+                  perPodPowerManagement: false
+              ---
+              apiVersion: machineconfiguration.openshift.io/v1
+              kind: KubeletConfig
+              metadata:
+                name: 09-arbiter-kubeletconfig
+              spec:
+                machineConfigPoolSelector:
+                  matchLabels:
+                    pools.operator.machineconfiguration.openshift.io/arbiter: ""
+                kubeletConfig:
+                  systemReserved:
+                    memory: 2Gi
+              EOF
+
+              echo "Applying tuning..."
+              # 3. Retry loop for the apply command in case API drops right at this moment
+              while ! oc apply -f /tmp/tuning.yaml; do
+                echo "Failed to apply tuning (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+              echo "Tuning applied successfully."
+
+              # 4. Wait for the MachineConfigOperator to pick up the changes and start progressing
+              echo "Waiting 60s for MachineConfigOperator to evaluate the new PerformanceProfile and start updating nodes..."
+              sleep 60
+
+              # 5. Wait for nodes to reboot and operators to settle again
+              echo "Waiting for all Cluster Operators to stabilize after node reboots..."
+              wait_for_operators
+
+              echo "Preparing StorageCluster manifest..."
+              cat <<EOF > /tmp/storagecluster.yaml
+              ---
+              apiVersion: core.libopenstorage.org/v1
+              kind: StorageCluster
+              metadata:
+                name: px-cluster
+                namespace: portworx
+                annotations:
+                  portworx.io/is-openshift: "true"
+                  portworx.io/misc-args: "-T px-storev2 -rt_opts small_conf=1"
+                  portworx.io/health-check: "skip"
+                  portworx.io/preflight-check: "skip"
+              spec:
+                network:
+                  dataInterface: NODE0_STORAGE_INTERFACE
+                deleteStrategy:
+                  type: UninstallAndWipe
+                image: portworx/oci-monitor:3.5.2
+                kvdb:
+                  internal: true
+                stork:
+                  enabled: true
+                csi:
+                  enabled: true
+                placement:
+                  tolerations:
+                  - key: "node-role.kubernetes.io/arbiter"
+                    operator: Exists
+                    effect: NoSchedule
+                  - key: "node-role.kubernetes.io/master"
+                    operator: Exists
+                    effect: NoSchedule
+                  - key: "node-role.kubernetes.io/control-plane"
+                    operator: Exists
+                    effect: NoSchedule
+                nodes:
+                  # ==========================================
+                  # 1. Primary Node 0 (Data and KVDB member 1)
+                  # ==========================================
+                  - selector:
+                      nodeName: "node0"  # Replace with actual hostname
+                    clusterDomain: "site-a"
+                    storage:
+                      devices:
+                        - "/dev/disk/by-partlabel/px-data"
+                      systemMetadataDevice: "/dev/disk/by-partlabel/px-metadata"
+                  
+                  # ==========================================
+                  # 2. Primary Node 1 (Data and KVDB member 2)
+                  # ==========================================
+                  - selector:
+                      nodeName: "node1"  # Replace with actual hostname
+                    clusterDomain: "site-b"
+                    storage:
+                      devices:
+                        - "/dev/disk/by-partlabel/px-data"
+                      systemMetadataDevice: "/dev/disk/by-partlabel/px-metadata"
+
+                  # ==========================================
+                  # 3. Arbiter Node (Storageless KVDB tie-breaker)
+                  # ==========================================
+                  - selector:
+                      nodeName: "arbiter"  # Replace with actual Arbiter hostname
+                    storageless: true
+                    clusterDomain: "witness"
+                    storage:
+                      kvdbDevice: "/dev/disk/by-partlabel/px-metadata"
+              EOF
+
+              echo "Applying StorageCluster..."
+              while ! oc apply -f /tmp/storagecluster.yaml; do
+                echo "Failed to apply StorageCluster (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+              
+              echo "StorageCluster applied successfully. Post-install job complete."

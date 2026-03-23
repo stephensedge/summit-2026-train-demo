@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tftp
+  labels:
+    app.kubernetes.io/name: tftp
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: tftp
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  replicas: 1
+  serviceName: "tftp"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tftp
+      app.kubernetes.io/component: tftp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tftp
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: tftp
+        app.kubernetes.io/part-of: bootstrap
+    spec:
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: tftp-sa
+      hostNetwork: true
+      initContainers:
+        - name: wait-for-files
+          image: docker.io/library/busybox:latest
+          command: 
+          - sh
+          - -c
+          - 'until [ -f /tftpboot/grub.cfg ]; do echo "Waiting for files to be populated..."; sleep 5; done'
+          volumeMounts:
+            - name: tftpboot
+              mountPath: /tftpboot
+      containers:
+        - name: tftp
+          image: localhost/tftp:latest 
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: 69
+              name: tftp-port
+          volumeMounts:
+            - name: tftpboot
+              mountPath: /tftpboot
+      volumes:
+        - name: tftpboot
+          persistentVolumeClaim:
+            name: tftpboot

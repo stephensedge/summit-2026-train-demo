@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pubsrv
+  labels:
+    app.kubernetes.io/name: pubsrv
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: pubsrv
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pubsrv
+      app.kubernetes.io/component: pubsrv
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pubsrv
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: pubsrv
+        app.kubernetes.io/part-of: bootstrap
+    spec:
+      terminationGracePeriodSeconds: 10
+      initContainers:
+        - name: wait-for-files
+          image: docker.io/library/busybox:latest
+          command: 
+          - sh
+          - -c
+          - 'until [ -f /pubsrv/kubeconfig ]; do echo "Waiting for files to be populated..."; sleep 5; done'
+          volumeMounts:
+            - name: pubsrv
+              mountPath: /pubsrv
+      containers:
+        - name: pubsrv
+          image: registry.redhat.io/ubi9/httpd-24:9.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: pubsrv
+              mountPath: /var/www/html
+      volumes:
+        - name: pubsrv
+          persistentVolumeClaim:
+            name: pubsrv

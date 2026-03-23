@@ -1,0 +1,77 @@
+---
+apiVersion: v1
+kind: Job
+metadata:
+  name: setup-network-install
+  labels:
+    app.kubernetes.io/name: install-iso
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: install-iso
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  serviceAccountName: ansible-runner
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  restartPolicy: Never
+  volumes:
+    - name: playbook
+      configMap:
+        name: create-ocp-pxe-boot-files
+    - name: agent-config
+      configMap:
+        name: agent-config
+        items:
+          - key: agent-config.yaml
+            path: agent-config.yaml
+    - name: install-config
+      configMap:
+        name: install-config
+        items:
+          - key: install-config.yaml
+            path: install-config.yaml
+    - name: additional-manifests
+      configMap:
+        name: additional-manifests
+    - name: tftpboot
+      persistentVolumeClaim:
+        claimName: tftpboot
+    - name: pubsrv
+      persistentVolumeClaim:
+        claimName: pubsrv
+    - name: create-iso-scratch
+      emptyDir: {}
+    - name: ansible-scratch
+      emptyDir: {}
+    - name: installer-cache
+      emptyDir: {}
+  containers:
+    - name: create-installer-iso
+      image: quay.io/jswanson/sps-ee:2025
+      command:
+        - /bin/sh
+        - -c
+        - |
+          ansible-playbook /playbooks/create-ocp-pxe-boot-files.yaml --inventory localhost, -vv
+      volumeMounts:
+        - name: playbook
+          mountPath: /playbooks
+        - name: agent-config
+          mountPath: /tmp/input/agent-config.yaml
+          subPath: agent-config.yaml
+        - name: install-config
+          mountPath: /tmp/input/install-config.yaml
+          subPath: install-config.yaml
+        - name: additional-manifests
+          mountPath: /tmp/input/additional-manifests
+        - name: create-iso-scratch
+          mountPath: /tmp/create-iso
+        - name: ansible-scratch
+          mountPath: /.ansible
+        - name: installer-cache
+          mountPath: /.cache
+        - name: tftpboot
+          mountPath: /tftpboot
+        - name: pubsrv
+          mountPath: /pubsrv
