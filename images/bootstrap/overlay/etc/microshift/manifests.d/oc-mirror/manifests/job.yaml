@@ -1,0 +1,61 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: run-oc-mirror
+  labels:
+    app.kubernetes.io/name: run-oc-mirror
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: run-oc-mirror
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  backoffLimit: 25
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: run-oc-mirror
+        app.kubernetes.io/part-of: bootstrap
+    spec:
+      restartPolicy: OnFailure
+      hostAliases:
+      - ip: "192.168.100.1"
+        hostnames:
+        - "registry-registry.apps.bootstrap.BASE_DNS_ZONE"
+      containers:
+        - name: run-oc-mirror
+          image: localhost/oc-mirror:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/opt/run-oc-mirror-v2.sh"]
+          volumeMounts:
+            - name: imagesetconfiguration
+              mountPath: /tmp/imagesetconfiguration.yaml
+              subPath: imagesetconfiguration.yaml
+            - name: oc-mirror-script
+              mountPath: /opt/run-oc-mirror-v2.sh
+              defaultMode: 0777
+              subPath: run-oc-mirror-v2.sh
+            - name: pull-secret
+              mountPath: /tmp/config.json
+              subPath: config.json
+            - name: workdir
+              mountPath: /tmp/workdir
+            - name: scratch
+              mountPath: /.oc-mirror
+      volumes:
+        - name: scratch
+          emptyDir: {}
+        - name: imagesetconfiguration
+          configMap:
+            name: oc-mirror-isc
+        - name: oc-mirror-script
+          configMap:
+            name: oc-mirror-script
+        - name: workdir
+          persistentVolumeClaim:
+            claimName: oc-mirror-workdir-pvc
+        - name: pull-secret
+          secret:
+            secretName: pull-secret
+            items:
+              - key: config.json
+                path: config.json

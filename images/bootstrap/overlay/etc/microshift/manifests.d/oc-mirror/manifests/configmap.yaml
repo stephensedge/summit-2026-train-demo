@@ -1,0 +1,156 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oc-mirror-isc
+data: 
+  imagesetconfiguration.yaml: |
+    ---
+    kind: ImageSetConfiguration
+    apiVersion: mirror.openshift.io/v1alpha2
+    archiveSize: 4
+    mirror:
+      platform:
+        graph: true
+        channels:
+          - name: stable-4.20
+            type: ocp
+            minVersion: OPENSHIFT_VERSION
+            maxVersion: OPENSHIFT_VERSION
+      operators:
+        - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.20
+          packages:
+            - name: kubernetes-nmstate-operator
+              channels:
+                - name: stable
+            - name: openshift-gitops-operator
+              channels:
+                - name: latest
+      helm:
+        repositories:
+          - name: harbor
+            url: https://helm.goharbor.io
+            charts:
+              - name: harbor
+                version: 1.18.3
+      additionalImages:
+        - name: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218
+        - name: registry.redhat.io/openshift4/ose-cli-rhel9:v4.20.0
+        - name: registry.redhat.io/rhacm2/prometheus-alertmanager-rhel9:v2.15.0-1
+        - name: registry.redhat.io/rhel9/postgresql-16:9.7-1766414426
+        - name: registry.redhat.io/rhel9/redis-7:9.7-1766414358
+        - name: registry.redhat.io/rhem/flightctl-alert-exporter-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-alertmanager-proxy-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-api-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-cli-artifacts-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-db-setup-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-periodic-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-telemetry-gateway-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-ui-ocp-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-ui-rhel9:1.0.2
+        - name: registry.redhat.io/rhem/flightctl-worker-rhel9:1.0.2
+        - name: docker.io/portworx/oci-monitor:3.5.2
+        - name: docker.io/portworx/px-enterprise:3.5.2
+        - name: docker.io/portworx/log-upload:px-1.1.46
+        - name: docker.io/portworx/telemetry-envoy:1.1.18
+        - name: docker.io/portworx/ccm-go:1.4.30
+        - name: docker.io/portworx/realtime-metrics:1.0.34
+        - name: docker.io/portworx/telemetry-envoy:1.1.18
+        - name: docker.io/library/busybox:latest
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oc-mirror-script
+data: 
+  run-oc-mirror-v2.sh: |
+    #!/bin/bash
+
+    REGISTRY_INTERNAL_URL="https://harbor.registry.svc.cluster.local"
+    REGISTRY="registry-registry.apps.bootstrap.BASE_DNS_ZONE:443"
+    REGISTRY_USERNAME="admin"
+    REGISTRY_PASSWORD="REGISTRY_ADMIN_PASSWORD"
+    MAPPING_FILE="/tmp/scratch/working-dir/dry-run/mapping.txt"
+    CLUSTER_RESOURCES_DIR="/tmp/scratch/working-dir/cluster-resources"
+
+    echo "Combining registry auths..."
+    REGISTRY_AUTH=$(echo -n "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" | base64 -w 0)
+    jq --arg url "$REGISTRY" --arg auth "$REGISTRY_AUTH" '.auths += {($url): {"auth": $auth}}' /tmp/config.json > /tmp/authfile.json
+
+    echo "Running oc-mirror in dry-run mode to generate mapping file..."
+    oc-mirror docker://${REGISTRY} \
+        --v2 \
+        --config=/tmp/imagesetconfiguration.yaml \
+        --dest-tls-verify=false \
+        --authfile=/tmp/authfile.json \
+        --workspace=file:///tmp/scratch/ \
+        --dry-run
+
+    if [ ! -f "$MAPPING_FILE" ]; then
+        echo "Error: Dry-run mapping file not found at $MAPPING_FILE"
+        exit 1
+    fi
+
+    echo "Parsing required projects from the mapping file..."
+    # Extract the project name (the string immediately following the target registry URL)
+    # We also append "openshift" to ensure it's always created, then sort to get unique names.
+    PROJECTS=$( (echo "openshift"; awk -F"${REGISTRY}/" '{if (NF>1) {split($2,a,"/"); print a[1]}}' "$MAPPING_FILE") | sort -u )
+
+    echo "Found the following projects to set up:"
+    echo "$PROJECTS"
+    echo "----------------------------------------"
+
+    for proj in $PROJECTS; do
+        echo "Checking if project '${proj}' exists..."
+        if curl -ksu "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" \
+            "${REGISTRY_INTERNAL_URL}/api/v2.0/projects?name=${proj}" \
+            | grep -q "\"name\":\"${proj}\""; then
+            echo "Project '${proj}' already exists."
+        else
+            echo "Creating project '${proj}'..."
+            curl -ksu "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" \
+            -H "Content-Type: application/json" \
+            -X POST "${REGISTRY_INTERNAL_URL}/api/v2.0/projects" \
+            -d "{
+                \"project_name\": \"${proj}\",
+                \"public\": true,
+                \"metadata\": {
+                \"public\": \"true\",
+                \"auto_scan\": \"false\",
+                \"enable_content_trust\": \"false\",
+                \"prevent_vul\": \"false\",
+                \"reuse_sys_cve_whitelist\": \"true\"
+                },
+                \"storage_limit\": -1
+            }"
+            echo "Project '${proj}' created."
+        fi
+    done
+    echo "----------------------------------------"
+
+    echo "Starting actual oc-mirror..."
+    oc-mirror docker://${REGISTRY} \
+        --v2 \
+        --config=/tmp/imagesetconfiguration.yaml \
+        --dest-tls-verify=false \
+        --retry-times 5 \
+        --retry-delay 3s \
+        --authfile=/tmp/authfile.json \
+        --workspace=file:///tmp/scratch/
+
+    echo "----------------------------------------"
+    echo "Displaying generated cluster resources..."
+
+    if [ -d "$CLUSTER_RESOURCES_DIR" ]; then
+        for file in "$CLUSTER_RESOURCES_DIR"/*; do
+            if [ -f "$file" ]; then
+                echo ""
+                echo "========== Contents of $(basename "$file") =========="
+                cat "$file"
+                echo "====================================================="
+            fi
+        done
+    else
+        echo "Warning: Directory $CLUSTER_RESOURCES_DIR does not exist."
+        echo "oc-mirror may not have completed successfully or generated resource files."
+    fi

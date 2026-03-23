@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oc-mirror-workdir-pvc
+  labels:
+    app.kubernetes.io/name: oc-mirror-workdir-pvc
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 25Gi
