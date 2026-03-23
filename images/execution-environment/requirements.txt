@@ -1,0 +1,5 @@
+pyYAML
+requests
+jmespath
+pywinRM
+passlib
