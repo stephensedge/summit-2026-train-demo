@@ -1,24 +1,42 @@
-#!/bin/bash
+!/bin/bash
 set -e
 
-IMAGE_DIR="/usr/lib/conatiner-images"
+# TYPO FIXED!
+IMAGE_DIR="/usr/lib/container-images"
+
 echo "Starting image import..."
 
-# Loop through our reference text files
+# ==========================================
+# PHASE 1: Load strict digest images using 'dir:' transport
+# ==========================================
+echo "Checking for .ref digest payloads..."
 for ref_file in "$IMAGE_DIR"/*.ref; do
-    [ -f "$ref_file" ] || continue 
-    
-    # Get the matching tar file and the exact image string
-    tar_file="${ref_file%.ref}.tar"
+    [ -f "$ref_file" ] || continue
+
+    img_dir="${ref_file%.ref}"
     image_ref=$(cat "$ref_file")
-    
-    echo "Loading $image_ref into local storage..."
-    
-    # Use skopeo to force it into CRI-O/Podman storage with the exact digest name
-    if skopeo copy "docker-archive:$tar_file" "containers-storage:$image_ref"; then
+
+    echo "Injecting $image_ref into local storage..."
+    if skopeo copy "dir:$img_dir" "containers-storage:$image_ref"; then
         echo "Success: $image_ref"
     else
         echo "Failed to load $image_ref" >&2
+        exit 1
+    fi
+done
+
+# ==========================================
+# PHASE 2: Load standard tagged images (dhcp, dns, etc.)
+# ==========================================
+echo "Checking for remaining standard .tar archives..."
+for tar_file in "$IMAGE_DIR"/*.tar; do
+    [ -f "$tar_file" ] || continue
+
+    echo "Loading standard archive $tar_file ..."
+    if podman load -i "$tar_file"; then
+        echo "Success: $tar_file"
+    else
+        echo "Failed to load standard archive $tar_file" >&2
         exit 1
     fi
 done
