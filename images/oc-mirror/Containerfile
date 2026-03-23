@@ -1,0 +1,17 @@
+FROM localhost/registered-base:latest
+
+RUN dnf -y install jq && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+RUN subscription-manager clean && \
+    rm -rf /var/lib/rhsm /var/log/rhsm
+
+RUN curl -o /tmp/oc-mirror.tar.gz https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/oc-mirror.tar.gz
+
+RUN tar -xzvf /tmp/oc-mirror.tar.gz
+
+RUN cp oc-mirror /usr/local/bin/oc-mirror
+RUN chmod +x /usr/local/bin/oc-mirror
+
+RUN rm -rf /tmp/oc-mirror.tar.gz oc-mirror
