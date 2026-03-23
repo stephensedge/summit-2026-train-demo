@@ -1,25 +1,24 @@
-FROM registry.redhat.io/openshift4/microshift-bootc-rhel9:v4.20
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
-# Unset proxy env vars
-ENV NO_PROXY=
-ENV HTTP_PROXY=
-ENV HTTPS_PROXY=
+ARG USHIFT_VER=4.20
+ARG RHSM_ORG
+ARG RHSM_AK
 
 RUN dnf -y clean all && \
     rm -rf /etc/yum.repos.d/unsigned.repo
 RUN rm -rf /etc/rhsm-host
-
-# Args for RHSM
-ARG RHSM_ORG
-ARG RHSM_AK
 
 # Provide access to RHSM content
 RUN subscription-manager register \
     --org "${RHSM_ORG}" \
     --activationkey "${RHSM_AK}"
 
+RUN subscription-manager release \
+    --set=9.6
+
 # Install workstation packages
 RUN dnf -y groupinstall Workstation \
+    --nobest \
     && dnf clean all \
     && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
 
@@ -47,7 +46,7 @@ RUN dnf \
     && dnf clean all \
     && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
 
-# Install Microshift additional packages
+# Install Microshift
 RUN dnf \
     --enablerepo=rhel-9-for-x86_64-baseos-rpms \
     --enablerepo=rhel-9-for-x86_64-appstream-rpms \
@@ -55,6 +54,8 @@ RUN dnf \
     --enablerepo=gitops-1.19-for-rhel-9-x86_64-rpms \
     --enablerepo=fast-datapath-for-rhel-9-x86_64-rpms \
     install -y \
+    microshift \
+    microshift-release-info \
     openshift-clients \
     runc \
     microshift-olm \
@@ -82,40 +83,123 @@ RUN dnf \
 
 # Args for Microshift and Openshift
 ARG PULL_SECRET
+ARG SSH_KEY
+
+# Args for setup of bootstrap
+ARG EXTERNAL_INTERFACE
+ARG INTERNAL_INTERFACE
+
+# Args for lots of stuff
+ARG BASE_DNS_ZONE
+
+# Args for registry
+ARG REGISTRY_ADMIN_PASSWORD
+
+# Args for ACP install
+ARG OPENSHIFT_VERSION
+ARG ACP_API_IP
+ARG ACP_INGRESS_IP
+ARG ACP_DNS_SERVER
+ARG ACP_ROUTER_ADDRESS
+
+ARG NODE0_IP_ADDRESS
+ARG NODE0_CLUSTER_INTERFACE
+ARG NODE0_CLUSTER_INTERFACE_MAC_ADDRESS
+ARG NODE0_INSTALL_DEVICE
+ARG NODE0_STORAGE_INTERFACE
+ARG NODE0_STORAGE_IP_ADDRESS
+
+ARG NODE1_IP_ADDRESS
+ARG NODE1_CLUSTER_INTERFACE
+ARG NODE1_CLUSTER_INTERFACE_MAC_ADDRESS
+ARG NODE1_INSTALL_DEVICE
+ARG NODE1_STORAGE_INTERFACE
+ARG NODE1_STORAGE_IP_ADDRESS
+
+ARG NODES_STORAGE_DEVICE
+
+ARG ARBITER_IP_ADDRESS
+ARG ARBITER_CLUSTER_INTERFACE
+ARG ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS
+ARG ARBITER_INSTALL_DEVICE
+ARG ARBITER_STORAGE_INTERFACE
+ARG ARBITER_STORAGE_IP_ADDRESS
 
 # Add the overlays
 ADD overlay/ /
 
 # Microshift setup
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
+RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/ovn.yaml
 RUN chmod 0600 /etc/crio/openshift-pull-secret
 RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
     firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
     firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
-RUN podman pull $(jq -r '.images | .[]' /usr/share/microshift/release/release-x86_64.json) --authfile /etc/crio/openshift-pull-secret --storage-opt ignore_chown_errors=true
+
+RUN for image in $(jq -r '.images | .[]' /usr/share/microshift/release/release-x86_64.json); do \
+        safe_name=$(echo "$image" | tr '/:@' '_'); \
+        skopeo copy \
+            --authfile /etc/crio/openshift-pull-secret \
+            "docker://$image" \
+            "dir:/usr/lib/container-images/${safe_name}"; \
+        echo "$image" > "/usr/lib/container-images/${safe_name}.ref"; \
+    done
+
 RUN systemctl enable microshift-make-rshared.service
+RUN systemctl enable microshift
 
-# DNS
-RUN podman load --input /tmp/images/dns.tar --storage-opt ignore_chown_errors=true
-
-# DHCP
-RUN podman load --input /tmp/images/dhcp.tar --storage-opt ignore_chown_errors=true
+# DHCP setup
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/manifests.d/dhcp/manifests/configmap.yaml
 
-# Bootstrap networking
-ARG EXTERNAL_INTERFACE
-ARG INTERNAL_INTERFACE
+# Registry/registry-init setup
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/registry-init/manifests/configmap.yaml
+RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/registry-init/manifests/configmap.yaml
 
+# Network-install setup
+RUN sed -i "s/NODE0_IP_ADDRESS/${NODE0_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE0_CLUSTER_INTERFACE/${NODE0_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE0_CLUSTER_INTERFACE_MAC_ADDRESS/${NODE0_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE0_INSTALL_DEVICE/${NODE0_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE0_STORAGE_INTERFACE/${NODE0_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+
+RUN sed -i "s/NODE1_IP_ADDRESS/${NODE1_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_CLUSTER_INTERFACE/${NODE1_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_CLUSTER_INTERFACE_MAC_ADDRESS/${NODE1_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_INSTALL_DEVICE/${NODE1_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_STORAGE_INTERFACE/${NODE1_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+
+RUN sed -i "s/ARBITER_IP_ADDRESS/${ARBITER_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ARBITER_CLUSTER_INTERFACE/${ARBITER_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS/${ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ARBITER_INSTALL_DEVICE/${ARBITER_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ARBITER_STORAGE_INTERFACE/${ARBITER_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+
+RUN sed -i "s/ACP_API_IP/${ACP_API_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ACP_INGRESS_IP/${ACP_INGRESS_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s|SSH_KEY|${SSH_KEY}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ACP_DNS_SERVER/${ACP_DNS_SERVER}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ACP_ROUTER_ADDRESS/${ACP_ROUTER_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s|NODES_STORAGE_DEVICE|${NODES_STORAGE_DEVICE}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+
+# oc-mirror setup
+RUN sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
+RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/oc-mirror/manifests/job.yaml
+RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/oc-mirror/manifests/secret.yaml
+
+# Routing/etc setup
 RUN chmod +x /usr/local/bin/setup-network.sh
 RUN sed -i "s/EXTERNAL_INTERFACE/${EXTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
 RUN systemctl enable setup-network.service
 
-# ## Storage setup
-# COPY setup-storage.sh /usr/local/bin/setup-storage.sh
-# RUN chmod +x /usr/local/bin/setup-storage.sh
-# COPY setup-storage.service /etc/systemd/system/storage-setup.service
-# RUN systemctl enable storage-setup.service
+# Load images into podman storage on boot
+RUN chmod +x /usr/libexec/load-images.sh
+RUN systemctl enable load-images.service
 
 ## Set graphical target
 RUN systemctl set-default graphical.target
@@ -127,12 +211,14 @@ RUN echo "${HOSTNAME}" > /etc/hostname
 # Helper scripts
 RUN chmod +x /usr/local/bin/get-microshift-kubeconfig.sh
 
-# Cleanup
-RUN subscription-manager clean
-RUN rm -rf /var/lib/rhsm /var/log/rhsm
+# # Cleanup
+# RUN subscription-manager clean
+# RUN rm -rf /var/lib/rhsm /var/log/rhsm
 
 # Disable auto-updating
 RUN systemctl mask bootc-fetch-apply-updates.timer
 
+LABEL containers.bootc 1
+
 # Lint the build
-#RUN bootc container lint
+RUN bootc container lint
