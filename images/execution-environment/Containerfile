@@ -35,6 +35,7 @@ WORKDIR /tmp/pip
 RUN python3 -m pip wheel --no-cache-dir --wheel-dir=/tmp/wheels -r pip-install.txt -r requirements.txt
 
 FROM python-base as openshift-utils
+ARG OPENSHIFT_VERSION
 RUN curl -o /tmp/openshift-client-linux.tar.gz https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
 RUN tar -xzvf /tmp/openshift-client-linux.tar.gz -C /tmp
 RUN chmod +x /tmp/oc
