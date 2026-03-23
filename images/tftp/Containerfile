@@ -1,7 +1,10 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM localhost/registered-base:latest
 
-RUN microdnf install -y tftp-server && \
-    microdnf clean all
+RUN dnf install -y tftp-server && \
+    dnf clean all
+
+RUN subscription-manager clean && \
+    rm -rf /var/lib/rhsm /var/log/rhsm
 
 RUN mkdir -p /tftpboot
 
