@@ -1,7 +1,7 @@
 # --- Variables ---
 #COMPONENTS := dns dhcp
-COMPONENTS       := dns dhcp
-BOOTSTRAP_IMG    := localhost/microshift-bundle:latest
+COMPONENTS       := dns dhcp oc-mirror execution-environment tftp
+BOOTSTRAP_IMG    := localhost/bootstrap:latest
 COMPONENT_IMGS        := $(foreach component,$(COMPONENTS),localhost/$(component):latest)
 
 BUILD_TARGETS  := $(addprefix build-, $(COMPONENTS))
@@ -12,11 +12,12 @@ BUILD_ARG_FILE ?= ./ignore/build-args.txt
 
 KICKSTART	   ?= ./kickstarts/default.ks
 RHEL_BOOT_ISO  ?= ./rhel-9.6-x86_64-boot.iso
+BOOTSTRAP_ISO_OUTPUT_DIR ?= /tmp/install-bootstrap.iso
 
 # --- Targets ---
 .PHONY: all clean build-bootstrap build-all export-all create-boostrap-install-iso
 
-all: create-boostrap-install-iso
+all: build-bootstrap
 
 $(EXPORT_DIR):
 	mkdir -p $(EXPORT_DIR)
@@ -26,7 +27,7 @@ prep-base:
 	podman build \
 	--tag localhost/registered-base:latest \
 	--build-arg-file $(BUILD_ARG_FILE) \
-	./images/base/
+	./images/registered-base/
 
 build-%: prep-base
 	@echo "==> Building $* image..."
@@ -52,13 +53,13 @@ build-bootstrap: export-all
 	--build-arg-file $(BUILD_ARG_FILE) \
 	./images/bootstrap/
 
-create-bootstrap-install-iso:
+create-bootstrap-install-iso: build-bootstrap
 	@echo "==> Building installer ISO..."
-    bash ./scripts/create-iso.sh \
+	./scripts/create-iso.sh \
 	localhost/bootstrap:latest \
 	$(KICKSTART) \
 	$(RHEL_BOOT_ISO) \
-	./install-bootstrap.iso
+	"$(pwd)/install-bootstrap.iso"
 
 clean:
 	@echo "==> Cleaning up exports..."
