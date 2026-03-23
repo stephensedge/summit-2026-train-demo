@@ -1,0 +1,12 @@
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
+
+RUN microdnf install -y tftp-server && \
+    microdnf clean all
+
+RUN mkdir -p /tftpboot
+
+EXPOSE 69/udp
+
+VOLUME /tftpboot
+
+CMD ["/usr/sbin/in.tftpd", "-L", "-v", "-u", "root", "-s", "/tftpboot"]
