@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: harbor-helm-values
+data:
+  values.yaml: |
+    ---
+    persistence:
+      enabled: true
+      persistentVolumeClaim:
+        registry:
+          size: 250Gi
+          storageClass: "topolvm-provisioner"
+        chartmuseum:
+          size: 10Gi
+          storageClass: "topolvm-provisioner"
+        jobservice:
+          size: 5Gi
+          storageClass: "topolvm-provisioner"
+        database:
+          size: 5Gi
+          storageClass: "topolvm-provisioner"
+        redis:
+          size: 2Gi
+          storageClass: "topolvm-provisioner"
+
+    trivy:
+      enabled: false
+
+    notary:
+      enabled: false
+
+    clair:
+      enabled: false
+
+    externalURL: "https://registry-registry.apps.bootstrap.BASE_DNS_ZONE"
+
+    harborAdminPassword: "REGISTRY_ADMIN_PASSWORD"
+
+    internalTLS:
+      enabled: false
+
+    expose:
+      type: clusterIP
+      tls:
+        enabled: false
+      ingress:
+        hosts:
+          core: "registry-registry.apps.bootstrap.BASE_DNS_ZONE"
+
+    expose:
+      type: clusterIP
+      tls:
+        enabled: true
+        certSource: auto
+        auto:
+          commonName: "registry-registry.apps.bootstrap.BASE_DNS_ZONE"
+      ingress:
+        hosts:
+          core: "registry-registry.apps.bootstrap.BASE_DNS_ZONE"

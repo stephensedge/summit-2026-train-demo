@@ -1,0 +1,35 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-registry
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      name: run-helm
+    spec:
+      serviceAccountName: registry-deploy-sa
+      restartPolicy: Never
+      containers:
+      - name: helm-installer
+        image: alpine/helm:3.14.0
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Adding Harbor Helm repository..."
+            helm repo add harbor https://helm.goharbor.io
+            helm repo update
+            
+            echo "Deploying registry..."
+            helm upgrade --install harbor harbor/harbor \
+              --namespace registry \
+              -f /config/values.yaml \
+              --wait
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: harbor-helm-values
