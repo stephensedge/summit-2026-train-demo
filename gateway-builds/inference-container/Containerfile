@@ -79,4 +79,4 @@ ENV MODEL_PATH=/app/models/placards.onnx \
 USER 1001
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
-CMD ["python", "inference.py"]
+CMD ["python3", "inference.py"]

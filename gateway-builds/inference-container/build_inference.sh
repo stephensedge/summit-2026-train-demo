@@ -3,7 +3,7 @@
 IMAGE_NAME=quay.io/kenosborn/inference-train-demo
 IMAGE_TAG=v2
 
-podman build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
+podman build --no-cache -t "${IMAGE_NAME}:${IMAGE_TAG}" .
 
 echo
 printf "Do you want to push this image to quay.io? (Y/N): "
