@@ -2,10 +2,8 @@
 # Base: UBI9 Python 3.11 (Red Hat Universal Base Image)
 # Target: MS-01 edge compute device running RHEL 9 Image Mode (bootc)
 # Runtime: Podman (rootless) under GNOME desktop session
-# Managed by: Red Hat Edge Manager (RHEM) via Quadlet systemd unit (TODO)
-#
-# Display: GNOME desktop is running on the MS-01 with a physical monitor.
-# cv2.imshow() works via the user's $DISPLAY — pass it at runtime with -e DISPLAY.
+# Managed by: Red Hat Edge Manager (RHEM) via Quadlet systemd unit 
+
 
 FROM registry.access.redhat.com/ubi9/python-311
 

@@ -1,9 +1,15 @@
+# ---------------------------------------------------------------------------
+# Last Update: 27-Mar-26
+# ---------------------------------------------------------------------------
+
 import json
 import os
 import time
+import threading
 import numpy as np
 import cv2
 import onnxruntime as ort
+from flask import Flask, Response
 
 # ---------------------------------------------------------------------------
 # Configuration — all values read from environment variables so the container
@@ -24,9 +30,20 @@ MODEL_PATH  = os.environ.get("MODEL_PATH",  "/app/models/placards.onnx")
 LABELS_PATH = os.environ.get("LABELS_PATH", "/app/models/labels.json")
 
 CAM_INDEX   = int(os.environ.get("CAMERA_INDEX", "0"))
-CAM_W       = int(os.environ.get("CAM_W", "1280"))
-CAM_H       = int(os.environ.get("CAM_H", "720"))
+CAM_W       = int(os.environ.get("CAM_W", "640"))
+CAM_H       = int(os.environ.get("CAM_H", "480"))
+EXPOSURE    = int(os.environ.get("EXPOSURE",    "-1"))  # -1 = auto, positive = manual
+AUTOFOCUS   = int(os.environ.get("AUTOFOCUS",   "-1"))  # -1 = don't touch, 1=on, 0=off
+FOCUS       = int(os.environ.get("FOCUS",       "-1"))  # -1 = don't touch, 0-255 manual
+CONTRAST    = int(os.environ.get("CONTRAST",    "-1"))  # -1 = don't touch, 0-255
+BRIGHTNESS  = int(os.environ.get("BRIGHTNESS",  "-1"))  # -1 = don't touch, 0-255
+SATURATION  = int(os.environ.get("SATURATION",  "-1"))  # -1 = don't touch, 0-255
+SHARPNESS   = int(os.environ.get("SHARPNESS",   "-1"))  # -1 = don't touch, 0-255
+GAIN        = int(os.environ.get("GAIN",        "-1"))  # -1 = don't touch, 0-255
 IN_W, IN_H  = 224, 224  # model input size — fixed by training, not tunable
+
+DISPLAY_SIZE = int(os.environ.get("DISPLAY_SIZE", "800"))
+WEB_PORT     = int(os.environ.get("WEB_PORT", "8080"))
 
 # --- Safety / arming knobs ---
 ALLOWED_COMMANDS = {"start", "stop", "slow", "reverse"}
@@ -38,21 +55,19 @@ COOLDOWN_SEC  = float(os.environ.get("COOLDOWN_SEC", "1.0"))
 NONE_MAX_PROB = float(os.environ.get("NONE_MAX_PROB", "0.20"))
 MARGIN_MIN    = float(os.environ.get("MARGIN_MIN",    "0.20"))
 
-# --- Bright paper gate (red-object false-positive suppression) ---
+# --- Bright paper gate ---
 USE_PAPER_GATE    = _bool("USE_PAPER_GATE", True)
 MIN_BRIGHT_FRAC   = float(os.environ.get("MIN_BRIGHT_FRAC",   "0.18"))
 MAX_BRIGHT_FRAC   = float(os.environ.get("MAX_BRIGHT_FRAC",   "0.92"))
 MIN_CENTER_BRIGHT = float(os.environ.get("MIN_CENTER_BRIGHT", "0.12"))
 BRIGHT_THRESH     = int(os.environ.get("BRIGHT_THRESH",       "185"))
 
-# --- UI — disabled by default for headless edge operation ---
-SHOW_WINDOW       = _bool("SHOW_WINDOW",         False)
-PRINT_EVERY_SEC   = float(os.environ.get("PRINT_EVERY_SEC",  "0.20"))
-DRAW_CROP_GUIDE   = _bool("DRAW_CROP_GUIDE",     True)
-TRIGGER_FLASH_SEC = float(os.environ.get("TRIGGER_FLASH_SEC", "0.90"))
-SHOW_DEBUG_ON_SCREEN = _bool("SHOW_DEBUG_ON_SCREEN", False)
+PRINT_EVERY_SEC      = float(os.environ.get("PRINT_EVERY_SEC",   "0.20"))
+DRAW_CROP_GUIDE      = _bool("DRAW_CROP_GUIDE",     True)
+TRIGGER_FLASH_SEC    = float(os.environ.get("TRIGGER_FLASH_SEC", "0.90"))
+SHOW_DEBUG_ON_SCREEN = _bool("SHOW_DEBUG_ON_SCREEN", True)
 
-# --- MQTT (stub — not yet configured) ---
+# --- MQTT ---
 MQTT_ENABLED  = _bool("MQTT_ENABLED", False)
 MQTT_BROKER   = os.environ.get("MQTT_BROKER",  "localhost")
 MQTT_PORT     = int(os.environ.get("MQTT_PORT", "1883"))
@@ -60,6 +75,68 @@ MQTT_TOPIC    = os.environ.get("MQTT_TOPIC",   "train/cmd")
 DEVICE_ID     = os.environ.get("DEVICE_ID",    "ms01-camera")
 MODEL_VERSION = os.environ.get("MODEL_VERSION", "placards-v1")
 
+# ---------------------------------------------------------------------------
+# Shared frame buffer — inference loop writes, Flask thread reads
+# ---------------------------------------------------------------------------
+_frame_lock   = threading.Lock()
+_latest_frame = None  # JPEG bytes
+
+
+def set_frame(jpeg_bytes):
+    global _latest_frame
+    with _frame_lock:
+        _latest_frame = jpeg_bytes
+
+
+def get_frame():
+    with _frame_lock:
+        return _latest_frame
+
+
+# ---------------------------------------------------------------------------
+# Flask MJPEG server
+# ---------------------------------------------------------------------------
+app = Flask(__name__)
+
+
+@app.route("/")
+def index():
+    return """<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Inference</title>
+  <style>
+    body { margin: 0; background: #000; display: flex;
+           justify-content: center; align-items: flex-start; }
+    img  { display: block; max-width: 100vw; max-height: 100vh; }
+  </style>
+</head>
+<body>
+  <img src="/stream" />
+</body>
+</html>"""
+
+
+@app.route("/stream")
+def stream():
+    def generate():
+        while True:
+            frame = get_frame()
+            if frame is not None:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+            time.sleep(0.033)  # ~30fps max to client
+    return Response(
+        generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Inference helpers — identical to inference.py
+# ---------------------------------------------------------------------------
 
 def softmax(x):
     e = np.exp(x - np.max(x))
@@ -84,36 +161,23 @@ def preprocess_rgb(rgb):
 
 
 def detect_bright_paper(square_bgr):
-    """
-    Looser gate than contour detection:
-    checks whether a substantial bright/paper-like region exists in the guide box.
-    Returns:
-      found(bool), mask(uint8), bright_frac(float), center_bright_frac(float)
-    """
     gray = cv2.cvtColor(square_bgr, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
-
     _, mask = cv2.threshold(blur, BRIGHT_THRESH, 255, cv2.THRESH_BINARY)
-
-    # Clean up noise a bit
     kernel = np.ones((5, 5), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
     bright_frac = float(np.count_nonzero(mask)) / mask.size
-
     h, w = mask.shape[:2]
     y0, y1 = int(h * 0.25), int(h * 0.75)
     x0, x1 = int(w * 0.25), int(w * 0.75)
     center = mask[y0:y1, x0:x1]
     center_bright_frac = float(np.count_nonzero(center)) / center.size
-
     found = (
         bright_frac >= MIN_BRIGHT_FRAC and
         bright_frac <= MAX_BRIGHT_FRAC and
         center_bright_frac >= MIN_CENTER_BRIGHT
     )
-
     return found, mask, bright_frac, center_bright_frac
 
 
@@ -136,7 +200,11 @@ def draw_text_with_bg(img, text, org, font_scale=1.0, text_color=(255, 255, 255)
     cv2.putText(img, text, (x, y), font, font_scale, text_color, thickness, cv2.LINE_AA)
 
 
-def main():
+# ---------------------------------------------------------------------------
+# Main inference loop
+# ---------------------------------------------------------------------------
+
+def inference_loop():
     with open(LABELS_PATH) as f:
         labels = json.load(f)
 
@@ -147,39 +215,59 @@ def main():
     sess = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
     input_name = sess.get_inputs()[0].name
 
-    cap = cv2.VideoCapture(CAM_INDEX)
+    cap = cv2.VideoCapture(CAM_INDEX, cv2.CAP_V4L2)
     if not cap.isOpened():
         raise SystemExit("Could not open webcam. Try CAM_INDEX=1.")
 
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_W)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAM_H)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    if EXPOSURE > 0:
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual mode
+        cap.set(cv2.CAP_PROP_EXPOSURE, EXPOSURE)
+        print(f"Camera exposure: manual ({EXPOSURE})")
+    else:
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)  # 3 = auto mode
+        print("Camera exposure: auto")
+
+    if AUTOFOCUS >= 0:
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, AUTOFOCUS)
+        print(f"Camera autofocus: {'on' if AUTOFOCUS == 1 else 'off'}")
+    if FOCUS >= 0:
+        cap.set(cv2.CAP_PROP_FOCUS, FOCUS)
+        print(f"Camera focus: {FOCUS}")
+    if CONTRAST >= 0:
+        cap.set(cv2.CAP_PROP_CONTRAST, CONTRAST)
+        print(f"Camera contrast: {CONTRAST}")
+    if BRIGHTNESS >= 0:
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, BRIGHTNESS)
+        print(f"Camera brightness: {BRIGHTNESS}")
+    if SATURATION >= 0:
+        cap.set(cv2.CAP_PROP_SATURATION, SATURATION)
+        print(f"Camera saturation: {SATURATION}")
+    if SHARPNESS >= 0:
+        cap.set(cv2.CAP_PROP_SHARPNESS, SHARPNESS)
+        print(f"Camera sharpness: {SHARPNESS}")
+    if GAIN >= 0:
+        cap.set(cv2.CAP_PROP_GAIN, GAIN)
+        print(f"Camera gain: {GAIN}")
 
     last_print = 0.0
-
-    # Create resizable window before the main loop
-    # WINDOW_GUI_NORMAL strips the OpenCV toolbar and mouse coordinate bar
-    # Window title is set via env var — override WINDOW_TITLE to customize
-    WIN_TITLE = os.environ.get("WINDOW_TITLE", "AI Inference Window")
-    if SHOW_WINDOW:
-        cv2.namedWindow(WIN_TITLE, cv2.WINDOW_GUI_NORMAL)
-        cv2.resizeWindow(WIN_TITLE, 600, 900)
-        cv2.moveWindow(WIN_TITLE, 0, 0)
-        cv2.setWindowTitle(WIN_TITLE, WIN_TITLE)
-
-    # stability / trigger state
     streak_label = None
     streak = 0
     last_trigger_time = 0.0
     last_trigger_label = None
     last_trigger_display_until = 0.0
 
-    # fps estimate
     fps_t0 = time.time()
     fps_frames = 0
     fps_val = 0.0
 
+    status_h = 300
+
     gate_status = "paper gate ON" if USE_PAPER_GATE else "paper gate OFF"
-    print(f"Running ARMED webcam inference [{gate_status}]. Press 'q' to quit.")
+    print(f"Running ARMED webcam inference [{gate_status}]. Web stream on :{WEB_PORT}")
     print(
         f"ARM_THRESHOLD={ARM_THRESHOLD}  STABLE_FRAMES={STABLE_FRAMES}  "
         f"COOLDOWN_SEC={COOLDOWN_SEC}"
@@ -205,7 +293,8 @@ def main():
         center_bright_frac = 0.0
 
         if USE_PAPER_GATE:
-            paper_found, paper_mask, bright_frac, center_bright_frac = detect_bright_paper(square)
+            paper_found, paper_mask, bright_frac, center_bright_frac = \
+                detect_bright_paper(square)
 
         if paper_found:
             rgb = cv2.cvtColor(square, cv2.COLOR_BGR2RGB)
@@ -249,13 +338,10 @@ def main():
             triggered = True
             trigger_label = streak_label
             last_trigger_time = now
-
             last_trigger_label = trigger_label
             last_trigger_display_until = now + TRIGGER_FLASH_SEC
-
             print(f"\n########## TRIGGER! {trigger_label.upper()} ##########\n", flush=True)
 
-            # MQTT publish — enabled via MQTT_ENABLED env var
             if MQTT_ENABLED:
                 try:
                     import paho.mqtt.publish as mqtt_publish
@@ -300,121 +386,117 @@ def main():
             )
             last_print = now
 
-        if SHOW_WINDOW:  # False on headless edge device — skip all display code
-            h_frame, w_frame = frame.shape[:2]
+        # ── Build canvas — identical layout to inference.py ──────────────────
+        h_frame, w_frame = frame.shape[:2]
+        feed_size    = min(h_frame, w_frame)
+        canvas_w     = DISPLAY_SIZE
+        canvas_h     = DISPLAY_SIZE + status_h
+        canvas       = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
 
-            # ── Portrait layout — black canvas, camera top, status panel bottom
-            # DISPLAY_SIZE controls rendered square size regardless of capture res
-            DISPLAY_SIZE = int(os.environ.get("DISPLAY_SIZE", "600"))
-            feed_size    = min(h_frame, w_frame)
-            status_h     = 300
-            canvas_w     = DISPLAY_SIZE
-            canvas_h     = DISPLAY_SIZE + status_h
-            canvas       = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+        # Center-crop frame to square then scale to DISPLAY_SIZE
+        x0_crop     = max(0, (w_frame - feed_size) // 2)
+        y0_crop     = max(0, (h_frame - feed_size) // 2)
+        feed_w      = min(feed_size, w_frame)
+        feed_h      = min(feed_size, h_frame)
+        feed_square = frame[y0_crop:y0_crop + feed_h, x0_crop:x0_crop + feed_w]
+        feed_scaled = cv2.resize(feed_square, (DISPLAY_SIZE, DISPLAY_SIZE),
+                                 interpolation=cv2.INTER_LINEAR)
+        canvas[:DISPLAY_SIZE, :] = feed_scaled
 
-            # Center-crop frame to square then scale up to DISPLAY_SIZE
-            x0_crop     = max(0, (w_frame - feed_size) // 2)
-            y0_crop     = max(0, (h_frame - feed_size) // 2)
-            feed_w      = min(feed_size, w_frame)
-            feed_h      = min(feed_size, h_frame)
-            feed_square = frame[y0_crop:y0_crop + feed_h, x0_crop:x0_crop + feed_w]
-            feed_scaled = cv2.resize(feed_square, (DISPLAY_SIZE, DISPLAY_SIZE),
-                                     interpolation=cv2.INTER_LINEAR)
-            canvas[:DISPLAY_SIZE, :] = feed_scaled
+        # Guide box coords scaled to DISPLAY_SIZE
+        scale      = DISPLAY_SIZE / feed_size
+        gbx        = int((gx - x0_crop) * scale)
+        gby        = int((gy - y0_crop) * scale)
+        gside_disp = int(gside * scale)
 
-            # Guide box coords and size scaled to DISPLAY_SIZE
-            scale      = DISPLAY_SIZE / feed_size
-            gbx        = int((gx - x0_crop) * scale)
-            gby        = int((gy - y0_crop) * scale)
-            gside_disp = int(gside * scale)
+        # Paper gate mask preview
+        if USE_PAPER_GATE and paper_mask is not None:
+            preview_size = 120
+            mask_small = cv2.resize(paper_mask, (preview_size, preview_size),
+                                    interpolation=cv2.INTER_NEAREST)
+            mask_small = cv2.cvtColor(mask_small, cv2.COLOR_GRAY2BGR)
+            px = 8
+            py = DISPLAY_SIZE - preview_size - 8
+            canvas[py:py + preview_size, px:px + preview_size] = mask_small
+            cv2.rectangle(canvas, (px, py), (px + preview_size, py + preview_size),
+                          (255, 255, 255), 1)
+            draw_text_with_bg(canvas, "paper gate", (px + 4, py + 16),
+                font_scale=0.45, text_color=(255, 255, 255),
+                bg_color=(0, 0, 0), thickness=1, pad=3)
 
-            # ── Paper gate mask preview — bottom-left corner of feed ─────────
-            if USE_PAPER_GATE and paper_mask is not None:
-                preview_size = 120
-                mask_small = cv2.resize(paper_mask, (preview_size, preview_size),
-                                        interpolation=cv2.INTER_NEAREST)
-                mask_small = cv2.cvtColor(mask_small, cv2.COLOR_GRAY2BGR)
-                px = 8
-                py = DISPLAY_SIZE - preview_size - 8
-                canvas[py:py + preview_size, px:px + preview_size] = mask_small
-                cv2.rectangle(canvas, (px, py), (px + preview_size, py + preview_size),
-                              (255, 255, 255), 1)
-                draw_text_with_bg(canvas, "paper gate", (px + 4, py + 16),
-                    font_scale=0.45, text_color=(255, 255, 255),
+        # Guide box color
+        box_color = (255, 255, 255)
+        if now < last_trigger_display_until:
+            box_color = (0, 255, 0)
+        elif frame_armed:
+            box_color = (0, 255, 255)
+
+        if DRAW_CROP_GUIDE:
+            cv2.rectangle(canvas, (gbx, gby), (gbx + gside_disp, gby + gside_disp), box_color, 3)
+
+        if USE_PAPER_GATE:
+            inner_color = (0, 180, 0) if paper_found else (0, 0, 180)
+            inset = 12
+            cv2.rectangle(
+                canvas,
+                (gbx + inset, gby + inset),
+                (gbx + gside_disp - inset, gby + gside_disp - inset),
+                inner_color, 2
+            )
+
+        # Status panel
+        panel_y = DISPLAY_SIZE
+        cv2.line(canvas, (0, panel_y), (canvas_w, panel_y), (60, 60, 60), 2)
+
+        if now < last_trigger_display_until and last_trigger_label is not None:
+            status_text  = "COMMAND SENT:"
+            cmd_text     = command_label_text(last_trigger_label)
+            status_color = (0, 255, 0)
+        elif frame_armed:
+            status_text  = "READY:"
+            cmd_text     = command_label_text(label1)
+            status_color = (0, 255, 255)
+        else:
+            status_text  = "PREDICTION:"
+            cmd_text     = command_label_text(label1)
+            status_color = (255, 255, 255)
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        for txt, fs, thick, yoff, color in [
+            (status_text,               0.9, 2,  50,  status_color),
+            (cmd_text,                  2.0, 4,  130, status_color),
+            (f"Confidence: {conf1:.0%}", 0.9, 2, 185, (200, 200, 200)),
+        ]:
+            (tw, _), _ = cv2.getTextSize(txt, font, fs, thick)
+            cx = (canvas_w - tw) // 2
+            draw_text_with_bg(canvas, txt, (cx, panel_y + yoff),
+                font_scale=fs, text_color=color, bg_color=(0, 0, 0),
+                thickness=thick, pad=6)
+
+        if SHOW_DEBUG_ON_SCREEN:
+            debug_lines = [
+                f"top2: {label2} {conf2:.3f}   |   none: {none_prob:.3f}   |   margin: {margin:.3f}",
+                f"streak: {streak}   |   paper: {'off' if not USE_PAPER_GATE else ('yes' if paper_found else 'no')}   |   bright: {bright_frac:.3f}/{center_bright_frac:.3f}   |   fps: {fps_val:.1f}",
+            ]
+            for i, line in enumerate(debug_lines):
+                (tw, _), _ = cv2.getTextSize(line, font, 0.52, 1)
+                cx = (canvas_w - tw) // 2
+                draw_text_with_bg(canvas, line, (cx, panel_y + 220 + i * 32),
+                    font_scale=0.52, text_color=(160, 160, 160),
                     bg_color=(0, 0, 0), thickness=1, pad=3)
 
-            # ── Guide box ─────────────────────────────────────────────────────
-            box_color = (255, 255, 255)
-            if now < last_trigger_display_until:
-                box_color = (0, 255, 0)
-            elif frame_armed:
-                box_color = (0, 255, 255)
-
-            if DRAW_CROP_GUIDE:
-                cv2.rectangle(canvas, (gbx, gby), (gbx + gside_disp, gby + gside_disp), box_color, 3)
-
-            if USE_PAPER_GATE:
-                inner_color = (0, 180, 0) if paper_found else (0, 0, 180)
-                inset = 12
-                cv2.rectangle(
-                    canvas,
-                    (gbx + inset, gby + inset),
-                    (gbx + gside_disp - inset, gby + gside_disp - inset),
-                    inner_color, 2
-                )
-
-            # ── Status panel ──────────────────────────────────────────────────
-            panel_y = DISPLAY_SIZE
-            cv2.line(canvas, (0, panel_y), (canvas_w, panel_y), (60, 60, 60), 2)
-
-            if now < last_trigger_display_until and last_trigger_label is not None:
-                status_text  = "COMMAND SENT:"
-                cmd_text     = command_label_text(last_trigger_label)
-                status_color = (0, 255, 0)
-            elif frame_armed:
-                status_text  = "READY:"
-                cmd_text     = command_label_text(label1)
-                status_color = (0, 255, 255)
-            else:
-                status_text  = "PREDICTION:"
-                cmd_text     = command_label_text(label1)
-                status_color = (255, 255, 255)
-
-            # All text centered horizontally
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            for txt, fs, thick, yoff, color in [
-                (status_text,              0.9, 2,  50,  status_color),
-                (cmd_text,                 2.0, 4,  130, status_color),
-                (f"Confidence: {conf1:.0%}", 0.9, 2, 185, (200, 200, 200)),
-            ]:
-                (tw, _), _ = cv2.getTextSize(txt, font, fs, thick)
-                cx = (canvas_w - tw) // 2
-                draw_text_with_bg(canvas, txt, (cx, panel_y + yoff),
-                    font_scale=fs, text_color=color, bg_color=(0, 0, 0),
-                    thickness=thick, pad=6)
-
-            # Debug metrics — all centered, stacked single column
-            if SHOW_DEBUG_ON_SCREEN:
-                debug_lines = [
-                    f"top2: {label2} {conf2:.3f}   |   none: {none_prob:.3f}   |   margin: {margin:.3f}",
-                    f"streak: {streak}   |   paper: {'off' if not USE_PAPER_GATE else ('yes' if paper_found else 'no')}   |   bright: {bright_frac:.3f}/{center_bright_frac:.3f}   |   fps: {fps_val:.1f}",
-                ]
-                for i, line in enumerate(debug_lines):
-                    (tw, _), _ = cv2.getTextSize(line, font, 0.52, 1)
-                    cx = (canvas_w - tw) // 2
-                    draw_text_with_bg(canvas, line, (cx, panel_y + 220 + i * 32),
-                        font_scale=0.52, text_color=(160, 160, 160),
-                        bg_color=(0, 0, 0), thickness=1, pad=3)
-
-            # Display — no mouse coords, no toolbar (window set WINDOW_NORMAL)
-            cv2.imshow(WIN_TITLE, canvas)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+        # Encode canvas as JPEG and push to shared frame buffer
+        _, jpeg = cv2.imencode(".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        set_frame(jpeg.tobytes())
 
     cap.release()
-    if SHOW_WINDOW:
-        cv2.destroyAllWindows()
 
+
+# ---------------------------------------------------------------------------
+# Entry point — start inference in background thread, Flask in foreground
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    main()
+    t = threading.Thread(target=inference_loop, daemon=True)
+    t.start()
+    app.run(host="0.0.0.0", port=WEB_PORT, threaded=True)
