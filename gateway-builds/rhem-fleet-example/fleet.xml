@@ -1,0 +1,66 @@
+apiVersion: flightctl.io/v1beta1
+kind: Fleet
+metadata:
+  annotations:
+    fleet-controller/templateVersion: v13
+  creationTimestamp: '2026-03-16T22:28:02.595708Z'
+  generation: 13
+  labels: {}
+  name: test-fleet
+  resourceVersion: '27'
+spec:
+  selector:
+    matchLabels:
+      env: test
+  template:
+    metadata:
+      labels:
+        fleet: test-fleet
+    spec:
+      applications:
+        - name: inference
+          runAs: demouser
+          inline:
+            - path: inference.container
+              content: |-
+                [Unit]
+                Description=Inference(Edge AI train control)
+                After=network-online.target
+                Wants=network-online.target
+
+                [Container]
+                Image=quay.io/kenosborn/inference-train-demo:v2
+                AddDevice=/dev/video0
+                AddDevice=/dev/video1
+                PublishPort=8080:8080
+                Environment=CAM_W=640
+                Environment=CAM_H=480
+                Environment=DISPLAY_SIZE=800
+                Environment=USE_PAPER_GATE=false
+                Environment=ARM_THRESHOLD=0.93
+                Environment=MARGIN_MIN=0.50
+                Environment=STABLE_FRAMES=6
+                Environment=COOLDOWN_SEC=3.0
+                Environment=MQTT_ENABLED=false
+                Environment=MQTT_BROKER=10.20.0.150
+                Environment=MQTT_PORT=1883
+                Environment=MQTT_TOPIC=train/cmd
+                SecurityLabelDisable=true
+                User=root
+
+                [Install]
+                WantedBy=default.target
+              contentEncoding: plain
+          appType: quadlet
+          volumes: []
+      config: []
+      os:
+        image: quay.io/kenosborn/gateway-summit2k6-bootc:v1
+status:
+  conditions:
+    - lastTransitionTime: '2026-03-16T22:30:46.881476676Z'
+      message: ''
+      reason: Valid
+      status: 'True'
+      type: Valid
+
