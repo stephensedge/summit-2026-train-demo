@@ -5,3 +5,4 @@ ignore/
 *.tar
 images/execution-environment/shimx64.efi
 images/execution-environment/grubx64.efi
+.DS_Store
