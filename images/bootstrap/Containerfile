@@ -184,6 +184,7 @@ RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/netw
 RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/network-install/manifests/statefulset.yaml
 RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s|NODES_STORAGE_DEVICE|${NODES_STORAGE_DEVICE}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 
 # oc-mirror setup
 RUN sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
