@@ -4,7 +4,6 @@ kind: Route
 metadata:
   name: registry
   annotations:
-    haproxy.router.openshift.io/set-forwarded-headers: "append"
     haproxy.router.openshift.io/timeout: "60m"
 spec:
   to:
@@ -12,7 +11,6 @@ spec:
     name: harbor
     weight: 100
   port:
-    targetPort: 8080
+    targetPort: https
   tls:
-    termination: edge 
-    insecureEdgeTerminationPolicy: Allow
+    termination: passthrough
