@@ -77,6 +77,30 @@ data:
     REGISTRY_AUTH=$(printf "%s:%s" "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | base64 -w 0)
     jq --arg url "$REGISTRY" --arg auth "$REGISTRY_AUTH" '.auths += {($url): {"auth": $auth}}' /tmp/config.json > /tmp/authfile.json
 
+    echo "Creating openshift project..."
+    if curl -ksu "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" \
+        "${REGISTRY_INTERNAL_URL}/api/v2.0/projects?name=openshift" \
+        | grep -q "\"name\":\"openshift\""; then
+        echo "Project 'openshift' already exists."
+    else
+        echo "Creating project 'openshift'..."
+        curl -ksu "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" \
+        -H "Content-Type: application/json" \
+        -X POST "${REGISTRY_INTERNAL_URL}/api/v2.0/projects" \
+        -d "{
+            \"project_name\": \"openshift\",
+            \"public\": true,
+            \"metadata\": {
+            \"public\": \"true\",
+            \"auto_scan\": \"false\",
+            \"enable_content_trust\": \"false\",
+            \"prevent_vul\": \"false\",
+            \"reuse_sys_cve_whitelist\": \"true\"
+            },
+            \"storage_limit\": -1
+        }"
+        echo "Project 'openshift' created."
+
     echo "Running oc-mirror in dry-run mode to generate mapping file..."
     oc-mirror docker://${REGISTRY} \
         --v2 \
