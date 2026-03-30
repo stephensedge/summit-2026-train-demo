@@ -140,7 +140,7 @@ data:
       - cidr: 10.128.0.0/14
         hostPrefix: 22
       machineNetwork:
-      - cidr: 192.168.107.0/24
+      - cidr: 192.168.100.0/24
       networkType: OVNKubernetes 
       serviceNetwork:
       - 172.30.0.0/16
@@ -164,36 +164,36 @@ data:
         - NodeTuning
         - OperatorLifecycleManager
         - marketplace
-    imageContentSources:
+    imageDigestSources:
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift-gitops-1
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift-gitops-1
         source: registry.redhat.io/openshift-gitops-1
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift4
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift4
         source: registry.redhat.io/openshift4
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhel9
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/rhel9
         source: registry.redhat.io/rhel9
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift/release
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift/release
         source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift/release-images
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift/release-images
         source: quay.io/openshift-release-dev/ocp-release
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/ubi9
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/ubi9
         source: registry.access.redhat.com/ubi9
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhem
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/rhem
         source: registry.redhat.io/rhem
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/portworx
-        source: docker.io/portworx
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE
+        source: docker.io
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/openshift4
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift4
         source: registry.redhat.io/openshift4
       - mirrors:
-        - registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/rhacm2
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/rhacm2
         source: registry.redhat.io/rhacm2
 ---
 apiVersion: v1
@@ -225,7 +225,7 @@ data:
           block:
           - name: Get registry cert
             ansible.builtin.shell:
-              cmd: oc get secret harbor-nginx -n registry -o yaml | grep tls.crt | awk '{print $2}'
+              cmd: oc get secret harbor-nginx -n registry -o yaml | grep ca.crt | awk '{print $2}'
             register: _router_cert_raw
             changed_when: false
           - name: Extract tls.crt value
@@ -245,8 +245,8 @@ data:
             ansible.builtin.set_fact:
               _new_registry_auth:
                 auths:
-                  'registry-registry.apps.bootstrap.BASE_DNS_ZONE:443':
-                    auth: "{{ (admin ~ ':' ~ REGISTRY_ADMIN_PASSWORD) | b64encode }}"
+                  'registry-registry.apps.bootstrap.BASE_DNS_ZONE':
+                    auth: "{{ ('admin' ~ ':' ~ 'REGISTRY_ADMIN_PASSWORD') | b64encode }}"
           - name: Append local registry auth info
             ansible.builtin.set_fact:
               _appended_pull_secret: >-
@@ -293,7 +293,7 @@ data:
             changed_when: false
           - name: Generate install media
             ansible.builtin.shell:
-              cmd: "{{ create_dir }}/openshift-install --dir {{ create_dir }} agent create pxe-files --log-level debug"
+              cmd: "openshift-install --dir {{ create_dir }} agent create pxe-files --log-level debug"
           - name: Copy pxe resources to /tftpboot
             ansible.builtin.copy:
               src: "{{ file }}"
@@ -303,8 +303,10 @@ data:
               - "{{ pxe_resources }}/grub.cfg"
               - "{{ pxe_resources }}/grubx64.efi"
               - "{{ pxe_resources }}/shimx64.efi"
-              - "{{ create_dir }}/agent.x86_64-initrd.img"
-              - "{{ create_dir }}/agent.x86_64-vmlinuz"
+              - "{{ create_dir }}/boot-artifacts/agent.x86_64-initrd.img"
+              - "{{ create_dir }}/boot-artifacts/agent.x86_64-vmlinuz"
+            loop_control:
+              loop_var: file
           - name: Copy pubsrv resources to /pubsrv
             ansible.builtin.copy:
               src: "{{ file }}"
@@ -313,16 +315,17 @@ data:
             loop:
               - "{{ create_dir }}/auth/kubeconfig"
               - "{{ create_dir }}/auth/kubeadmin-password"
-              - "{{ create_dir }}/agent.x86_64-rootfs.img"
+              - "{{ create_dir }}/boot-artifacts/agent.x86_64-rootfs.img"
+            loop_control:
+              loop_var: file
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: additional-manifests
 data:
-apiVersion: v1
-data:
   04-arbiter-machineconfig.yaml: |
+    ---
     # Generated by Butane; do not edit
     apiVersion: machineconfiguration.openshift.io/v1
     kind: MachineConfig
@@ -363,6 +366,7 @@ data:
       kernelArguments:
         - console=ttyS0,115200n8
   05-master-machineconfig.yaml: |
+    ---
     # Generated by Butane; do not edit
     apiVersion: machineconfiguration.openshift.io/v1
     kind: MachineConfig
@@ -428,7 +432,7 @@ data:
       name: cs-redhat-operator-index-v4-20
       namespace: openshift-marketplace
     spec:
-      image: registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/redhat/redhat-operator-index:v4.20
+      image: registry-registry.apps.bootstrap.BASE_DNS_ZONE/redhat/redhat-operator-index:v4.20
       sourceType: grpc
   11-clustercatalog.yaml: |
     ---
@@ -442,7 +446,7 @@ data:
       priority: 0
       source:
         image:
-          ref: registry-registry.apps.bootstrap.BASE_DNS_ZONE:443/redhat/redhat-operator-index:v4.20
+          ref: registry-registry.apps.bootstrap.BASE_DNS_ZONE/redhat/redhat-operator-index:v4.20
         type: Image
   100-portworx-namespace.yaml: |
     ---
