@@ -211,7 +211,7 @@ data:
       vars:
         create_dir: "/tmp/install"
         input_dir: "/tmp/input"
-        output_dir: "/tmp/install-resources"
+        output_dir: "/install-resources"
         pxe_resources: "/tmp/pxe-resources"
       pre_tasks:
         - name: Check that this hasn't already been run
@@ -240,6 +240,10 @@ data:
           - name: Extract tls.crt value
             set_fact:
               _router_tls_crt: "{{ _router_cert_raw.stdout | b64decode }}"
+          - name: Write registry CA to file for openshift-install
+            ansible.builtin.copy:
+              content: "{{ _router_tls_crt }}"
+              dest: "{{ create_dir }}/registry-ca.crt"
           - name: Slurp up install-config
             ansible.builtin.slurp:
               path: "{{ input_dir }}/install-config.yaml"
@@ -303,7 +307,10 @@ data:
           - name: Generate install media
             ansible.builtin.shell:
               cmd: "openshift-install --dir {{ create_dir }} agent create pxe-files --log-level debug"
-          - name: Copy pxe resources to /tftpboot
+            environment:
+              SSL_CERT_FILE: "{{ create_dir }}/registry-ca.crt"
+              OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE: "registry-registry.apps.bootstrap.BASE_DNS_ZONE/openshift/release-images:OPENSHIFT_VERSION-x86_64"
+          - name: Copy pxe resources to {{ output_dir }}/tftpboot
             ansible.builtin.copy:
               src: "{{ file }}"
               dest: "{{ output_dir }}/tftpboot/{{ file.split('/')[-1] }}"
@@ -316,10 +323,10 @@ data:
               - "{{ create_dir }}/boot-artifacts/agent.x86_64-vmlinuz"
             loop_control:
               loop_var: file
-          - name: Copy pubsrv resources to /pubsrv
+          - name: Copy pubsrv resources to {{ output_dir }}/pubsrv
             ansible.builtin.copy:
               src: "{{ file }}"
-              dest: "/{{ output_dir }}/pubsrv/{{ file.split('/')[-1] }}"
+              dest: "{{ output_dir }}/pubsrv/{{ file.split('/')[-1] }}"
               remote_src: true
             loop:
               - "{{ create_dir }}/auth/kubeconfig"

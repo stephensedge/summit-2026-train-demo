@@ -9,3 +9,14 @@ spec:
     name: pubsrv
   port:
     targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: resources
+spec:
+  to:
+    kind: Service
+    name: install-resources
+  port:
+    targetPort: http

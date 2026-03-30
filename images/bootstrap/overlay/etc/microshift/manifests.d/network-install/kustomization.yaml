@@ -7,7 +7,6 @@ resources:
   - manifests/clusterrolebinding.yaml
   - manifests/configmap.yaml
   - manifests/deployment.yaml
-  - manifests/job.yaml
   - manifests/namespace.yaml
   - manifests/persistentvolumeclaim.yaml
   - manifests/rolebinding.yaml
