@@ -35,7 +35,7 @@ data:
 
     externalURL: "https://registry-registry.apps.bootstrap.BASE_DNS_ZONE"
 
-    harborAdminPassword: "REGISTRY_ADMIN_PASSWORD"
+    harborAdminPassword: REGISTRY_ADMIN_PASSWORD
 
     internalTLS:
       enabled: false
