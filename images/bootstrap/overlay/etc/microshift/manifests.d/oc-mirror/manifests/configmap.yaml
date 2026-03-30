@@ -26,13 +26,13 @@ data:
             - name: openshift-gitops-operator
               channels:
                 - name: latest
-      helm:
-        repositories:
-          - name: harbor
-            url: https://helm.goharbor.io
-            charts:
-              - name: harbor
-                version: 1.18.3
+      # helm:
+      #   repositories:
+      #     - name: harbor
+      #       url: https://helm.goharbor.io
+      #       charts:
+      #         - name: harbor
+      #           version: 1.18.3
       additionalImages:
         - name: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218
         - name: registry.redhat.io/openshift4/ose-cli-rhel9:v4.20.0
@@ -67,7 +67,7 @@ data:
     #!/bin/bash
 
     REGISTRY_INTERNAL_URL="https://harbor.registry.svc.cluster.local"
-    REGISTRY="registry-registry.apps.bootstrap.BASE_DNS_ZONE:443"
+    REGISTRY="registry-registry.apps.bootstrap.BASE_DNS_ZONE"
     REGISTRY_USERNAME="admin"
     REGISTRY_PASSWORD="REGISTRY_ADMIN_PASSWORD"
     MAPPING_FILE="/tmp/scratch/working-dir/dry-run/mapping.txt"
