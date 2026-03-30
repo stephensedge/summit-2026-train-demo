@@ -40,15 +40,16 @@ spec:
     - name: pubsrv
       persistentVolumeClaim:
         claimName: pubsrv
-    - name: create-iso-scratch
+    - name: install-scratch
       emptyDir: {}
     - name: ansible-scratch
       emptyDir: {}
     - name: installer-cache
       emptyDir: {}
   containers:
-    - name: create-installer-iso
-      image: quay.io/jswanson/sps-ee:2025
+    - name: create-pxe-files
+      image: localhost/execution-environment:latest
+      imagePullPolicy: IfNotPreset
       command:
         - /bin/sh
         - -c
@@ -65,8 +66,8 @@ spec:
           subPath: install-config.yaml
         - name: additional-manifests
           mountPath: /tmp/input/additional-manifests
-        - name: create-iso-scratch
-          mountPath: /tmp/create-iso
+        - name: install-scratch
+          mountPath: /tmp/install
         - name: ansible-scratch
           mountPath: /.ansible
         - name: installer-cache

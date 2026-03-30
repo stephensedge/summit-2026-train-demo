@@ -74,7 +74,7 @@ data:
     CLUSTER_RESOURCES_DIR="/tmp/scratch/working-dir/cluster-resources"
 
     echo "Combining registry auths..."
-    REGISTRY_AUTH=$(echo -n "${REGISTRY_USERNAME}:${REGISTRY_PASSWORD}" | base64 -w 0)
+    REGISTRY_AUTH=$(printf "%s:%s" "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | base64 -w 0)
     jq --arg url "$REGISTRY" --arg auth "$REGISTRY_AUTH" '.auths += {($url): {"auth": $auth}}' /tmp/config.json > /tmp/authfile.json
 
     echo "Running oc-mirror in dry-run mode to generate mapping file..."
@@ -84,6 +84,7 @@ data:
         --dest-tls-verify=false \
         --authfile=/tmp/authfile.json \
         --workspace=file:///tmp/scratch/ \
+        --remove-signatures \
         --dry-run
 
     if [ ! -f "$MAPPING_FILE" ]; then
@@ -136,6 +137,7 @@ data:
         --retry-times 5 \
         --retry-delay 3s \
         --authfile=/tmp/authfile.json \
+        --remove-signatures \
         --workspace=file:///tmp/scratch/
 
     echo "----------------------------------------"
