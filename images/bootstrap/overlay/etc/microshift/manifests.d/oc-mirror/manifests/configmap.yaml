@@ -99,7 +99,8 @@ data:
             },
             \"storage_limit\": -1
         }"
-        echo "Project 'openshift' created."
+      fi
+      echo "Project 'openshift' created."
 
     echo "Running oc-mirror in dry-run mode to generate mapping file..."
     oc-mirror docker://${REGISTRY} \
