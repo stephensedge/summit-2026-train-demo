@@ -66,6 +66,8 @@ data:
   run-oc-mirror-v2.sh: |
     #!/bin/bash
 
+    set -e
+
     REGISTRY_INTERNAL_URL="https://harbor.registry.svc.cluster.local"
     REGISTRY="registry-registry.apps.bootstrap.BASE_DNS_ZONE"
     REGISTRY_USERNAME="admin"
