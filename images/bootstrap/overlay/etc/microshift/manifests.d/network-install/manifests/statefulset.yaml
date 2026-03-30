@@ -27,12 +27,20 @@ spec:
       serviceAccountName: tftp-sa
       hostNetwork: true
       initContainers:
-        - name: wait-for-files
-          image: docker.io/library/busybox:latest
+        - name: download-files
+          image: registry.redhat.io/ubi9/httpd-24:9.7
+          imagePullPolicy: IfNotPresent
           command: 
           - sh
           - -c
-          - 'until [ -f /tftpboot/grub.cfg ]; do echo "Waiting for files to be populated..."; sleep 5; done'
+          - |
+            for i in grub.cfg grubx64.efi shimx64.efi agent.x86_64-initrd.img agent.x86_64-vmlinuz; do
+                echo "Downloading $i..."
+                curl --fail --retry 10 --retry-all-errors --retry-delay 3 \
+                     --output /tftpboot/"$i" \
+                     http://install-resources.svc.cluster.local:8080/tftpboot/"$i";
+            done
+            echo "All files downloaded successfully."
           volumeMounts:
             - name: tftpboot
               mountPath: /tftpboot
@@ -51,4 +59,94 @@ spec:
       volumes:
         - name: tftpboot
           persistentVolumeClaim:
-            name: tftpboot
+            claimName: tftpboot
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: generate-install-media
+  labels:
+    app.kubernetes.io/name: generate-install-media
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: generate-install-media
+    app.kubernetes.io/part-of: bootstrap
+spec:
+  replicas: 1
+  serviceName: "install-resources"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: generate-install-media
+      app.kubernetes.io/component: generate-install-media
+    spec:
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: ansible-runner
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: playbook
+          configMap:
+            name: create-ocp-pxe-boot-files
+        - name: agent-config
+          configMap:
+            name: agent-config
+            items:
+              - key: agent-config.yaml
+                path: agent-config.yaml
+        - name: install-config
+          configMap:
+            name: install-config
+            items:
+              - key: install-config.yaml
+                path: install-config.yaml
+        - name: additional-manifests
+          configMap:
+            name: additional-manifests
+        - name: install-resources
+          persistentVolumeClaim:
+            claimName: install-resources
+        - name: install-scratch
+          emptyDir: {}
+        - name: ansible-scratch
+          emptyDir: {}
+        - name: installer-cache
+          emptyDir: {}
+      initContainers:
+        - name: create-pxe-files
+          image: localhost/execution-environment:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              ansible-playbook /playbooks/create-ocp-pxe-boot-files.yaml --inventory localhost, -vv
+          volumeMounts:
+            - name: playbook
+              mountPath: /playbooks
+            - name: agent-config
+              mountPath: /tmp/input/agent-config.yaml
+              subPath: agent-config.yaml
+            - name: install-config
+              mountPath: /tmp/input/install-config.yaml
+              subPath: install-config.yaml
+            - name: additional-manifests
+              mountPath: /tmp/input/additional-manifests
+            - name: install-scratch
+              mountPath: /tmp/install
+            - name: ansible-scratch
+              mountPath: /.ansible
+            - name: installer-cache
+              mountPath: /.cache
+            - name: install-resources
+              mountPath: /install-resources
+      containers:
+        - name: host-install-resources
+          image: registry.redhat.io/ubi9/httpd-24:9.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: install-resources
+              mountPath: /var/www/html

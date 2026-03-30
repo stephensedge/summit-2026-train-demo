@@ -211,7 +211,7 @@ data:
       vars:
         create_dir: "/tmp/install"
         input_dir: "/tmp/input"
-        output_dir: "/tmp/output"
+        output_dir: "/tmp/install-resources"
         pxe_resources: "/tmp/pxe-resources"
       pre_tasks:
         - name: Check that this hasn't already been run
@@ -223,6 +223,15 @@ data:
           when:
             - not _install_status.stat.exists
           block:
+          - name: Create some output directories
+            ansible.builtin.file:
+              path: "{{ dir }}"
+              state: directory
+            loop:
+              - "{{ output_dir }}/tftpboot"
+              - "{{ output_dir }}/pubsrv"
+            loop_control:
+              loop_var: dir
           - name: Get registry cert
             ansible.builtin.shell:
               cmd: oc get secret harbor-nginx -n registry -o yaml | grep ca.crt | awk '{print $2}'
@@ -297,7 +306,7 @@ data:
           - name: Copy pxe resources to /tftpboot
             ansible.builtin.copy:
               src: "{{ file }}"
-              dest: "/tftpboot/{{ file.split('/')[-1] }}"
+              dest: "{{ output_dir }}/tftpboot/{{ file.split('/')[-1] }}"
               remote_src: true
             loop:
               - "{{ pxe_resources }}/grub.cfg"
@@ -310,7 +319,7 @@ data:
           - name: Copy pubsrv resources to /pubsrv
             ansible.builtin.copy:
               src: "{{ file }}"
-              dest: "/tftpboot/{{ file.split('/')[-1] }}"
+              dest: "/{{ output_dir }}/pubsrv/{{ file.split('/')[-1] }}"
               remote_src: true
             loop:
               - "{{ create_dir }}/auth/kubeconfig"
