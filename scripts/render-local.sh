@@ -40,8 +40,10 @@ sed -i "s|SSH_KEY|${SSH_KEY}|g" render/network-install/manifests/configmap.yaml
 sed -i "s/ACP_DNS_SERVER/${ACP_DNS_SERVER}/g" render/network-install/manifests/configmap.yaml
 sed -i "s/ACP_ROUTER_ADDRESS/${ACP_ROUTER_ADDRESS}/g" render/network-install/manifests/configmap.yaml
 sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" render/network-install/manifests/configmap.yaml
+sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" render/network-install/manifests/statefulset.yaml
 sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" render/network-install/manifests/configmap.yaml
 sed -i "s|NODES_STORAGE_DEVICE|${NODES_STORAGE_DEVICE}|g" render/network-install/manifests/configmap.yaml
+sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" render/network-install/manifests/configmap.yaml
 
 # oc-mirror setup
 sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" render/oc-mirror/manifests/configmap.yaml
