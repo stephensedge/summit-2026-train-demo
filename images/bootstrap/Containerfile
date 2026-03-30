@@ -181,6 +181,7 @@ RUN sed -i "s|SSH_KEY|${SSH_KEY}|g" /etc/microshift/manifests.d/network-install/
 RUN sed -i "s/ACP_DNS_SERVER/${ACP_DNS_SERVER}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_ROUTER_ADDRESS/${ACP_ROUTER_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/network-install/manifests/statefulset.yaml
 RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s|NODES_STORAGE_DEVICE|${NODES_STORAGE_DEVICE}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 
