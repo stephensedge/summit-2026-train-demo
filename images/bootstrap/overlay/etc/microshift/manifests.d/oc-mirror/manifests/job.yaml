@@ -26,6 +26,9 @@ spec:
           image: localhost/oc-mirror:latest
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "/opt/run-oc-mirror-v2.sh"]
+          env:
+            - name: HELM_CACHE_HOME
+              value: "/tmp/helm/cache"
           volumeMounts:
             - name: imagesetconfiguration
               mountPath: /tmp/imagesetconfiguration.yaml
@@ -41,6 +44,8 @@ spec:
               mountPath: /tmp/workdir
             - name: scratch
               mountPath: /.oc-mirror
+            - name: helm-cache
+              mountPath: /tmp/helm/cache
       volumes:
         - name: scratch
           emptyDir: {}
@@ -59,3 +64,5 @@ spec:
             items:
               - key: config.json
                 path: config.json
+        - name: helm-cache
+          emptyDir: {}

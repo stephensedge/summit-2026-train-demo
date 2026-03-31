@@ -33,6 +33,11 @@ data:
       #       charts:
       #         - name: harbor
       #           version: 1.18.3
+          # - name: flightctl
+          #   url: oci://quay.io/flightctl/charts
+          #   charts:
+          #     - name: flightctl
+          #       version: 1.0.2
       additionalImages:
         - name: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218
         - name: registry.redhat.io/openshift4/ose-cli-rhel9:v4.20.0
@@ -56,7 +61,6 @@ data:
         - name: docker.io/portworx/ccm-go:1.4.30
         - name: docker.io/portworx/realtime-metrics:1.0.34
         - name: docker.io/portworx/telemetry-envoy:1.1.18
-        - name: docker.io/library/busybox:latest
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -120,9 +124,11 @@ data:
     fi
 
     echo "Parsing required projects from the mapping file..."
-    # Extract the project name (the string immediately following the target registry URL)
-    # We also append "openshift" to ensure it's always created, then sort to get unique names.
-    PROJECTS=$( (echo "openshift"; awk -F"${REGISTRY}/" '{if (NF>1) {split($2,a,"/"); print a[1]}}' "$MAPPING_FILE") | sort -u )
+    PROJECTS=$(awk -F'=' '{print $2}' "$MAPPING_FILE" | \
+           sed 's|docker://||' | \
+           awk -F'/' '{print $2}' | \
+           sed -e 's/:.*//' -e 's/@.*//' | \
+           sort -u)
 
     echo "Found the following projects to set up:"
     echo "$PROJECTS"
