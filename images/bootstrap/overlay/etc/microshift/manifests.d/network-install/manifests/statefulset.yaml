@@ -65,6 +65,7 @@ spec:
       volumes:
         - name: tftpboot
           persistentVolumeClaim:
+<<<<<<< Updated upstream
             claimName: tftpboot
 ---
 apiVersion: apps/v1
@@ -167,3 +168,6 @@ spec:
           volumeMounts:
             - name: install-resources
               mountPath: /var/www/html
+=======
+            claimName: tftpboot
+>>>>>>> Stashed changes
