@@ -18,7 +18,7 @@ spec:
     spec:
       restartPolicy: OnFailure
       hostAliases:
-      - ip: "192.168.100.1"
+      - ip: "10.26.100.1"
         hostnames:
         - "registry-registry.apps.bootstrap.BASE_DNS_ZONE"
       containers:
@@ -35,7 +35,6 @@ spec:
               subPath: imagesetconfiguration.yaml
             - name: oc-mirror-script
               mountPath: /opt/run-oc-mirror-v2.sh
-              defaultMode: 0777
               subPath: run-oc-mirror-v2.sh
             - name: pull-secret
               mountPath: /tmp/config.json
@@ -55,6 +54,7 @@ spec:
         - name: oc-mirror-script
           configMap:
             name: oc-mirror-script
+            defaultMode: 0777
         - name: workdir
           persistentVolumeClaim:
             claimName: oc-mirror-workdir-pvc

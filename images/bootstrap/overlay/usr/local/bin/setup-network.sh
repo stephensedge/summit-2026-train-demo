@@ -34,13 +34,14 @@ bring_down_if_up() {
 bring_down_if_up "EXTERNAL_INTERFACE"
 bring_down_if_up "lan"
 
-# Modify or create connections
-retry "nmcli connection modify EXTERNAL_INTERFACE connection.zone external ipv4.dhcp-send-hostname no ipv6.dhcp-send-hostname no ipv4.dhcp-hostname bootstrap ipv4.dhcp-hostname bootstrap || true"
+# External interface: DHCP on the upstream/lab LAN (192.168.100.x)
+# This keeps the bootstrap reachable from the admin workstation
+retry "nmcli connection modify EXTERNAL_INTERFACE ipv4.method auto ipv4.dns-search summit2026.com connection.zone external || true"
 
-# Add LAN connection if it doesn't exist
+# Add LAN connection if it doesn't exist (internal cluster network)
 if ! nmcli -t -f NAME con show | grep -qx "lan"; then
   echo "Creating new 'lan' connection..."
-  retry "nmcli connection add type ethernet ifname INTERNAL_INTERFACE con-name lan ipv4.addresses 192.168.100.1/24 ipv4.dns 192.168.100.1 ipv4.dns-search summit2026.com ipv4.method manual connection.zone trusted"
+  retry "nmcli connection add type ethernet ifname INTERNAL_INTERFACE con-name lan ipv4.addresses 10.26.100.1/24 ipv4.dns 10.26.100.1 ipv4.dns-search summit2026.com ipv4.method manual connection.zone trusted"
 else
   echo "'lan' connection already exists, skipping add."
 fi

@@ -140,7 +140,7 @@ data:
       - cidr: 10.128.0.0/14
         hostPrefix: 22
       machineNetwork:
-      - cidr: 192.168.100.0/24
+      - cidr: 10.26.100.0/24
       networkType: OVNKubernetes 
       serviceNetwork:
       - 172.30.0.0/16

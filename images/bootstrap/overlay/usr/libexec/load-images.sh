@@ -1,7 +1,5 @@
-!/bin/bash
+#!/bin/bash
 set -e
-
-# TYPO FIXED!
 IMAGE_DIR="/usr/lib/container-images"
 
 echo "Starting image import..."
@@ -17,11 +15,14 @@ for ref_file in "$IMAGE_DIR"/*.ref; do
     image_ref=$(cat "$ref_file")
 
     echo "Injecting $image_ref into local storage..."
+    if [ ! -f "$img_dir/manifest.json" ]; then
+        echo "WARNING: $image_ref missing manifest.json, skipping (will be pulled at runtime)" >&2
+        continue
+    fi
     if skopeo copy "dir:$img_dir" "containers-storage:$image_ref"; then
         echo "Success: $image_ref"
     else
-        echo "Failed to load $image_ref" >&2
-        exit 1
+        echo "WARNING: Failed to load $image_ref, skipping (will be pulled at runtime)" >&2
     fi
 done
 

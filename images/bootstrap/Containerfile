@@ -129,20 +129,26 @@ ARG ARBITER_STORAGE_IP_ADDRESS
 ADD overlay/ /
 
 # Microshift setup
-RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
+RUN sed -i "s|PULL_SECRET|${PULL_SECRET}|g" /etc/crio/openshift-pull-secret
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/ovn.yaml
 RUN chmod 0600 /etc/crio/openshift-pull-secret
 RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
     firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
-    firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
+    firewall-offline-cmd --zone=trusted --add-source=169.254.169.1 && \
+    firewall-offline-cmd --zone=external --add-service=cockpit && \
+    firewall-offline-cmd --zone=external --add-service=ssh
 
 RUN for image in $(jq -r '.images | .[]' /usr/share/microshift/release/release-x86_64.json); do \
         safe_name=$(echo "$image" | tr '/:@' '_'); \
-        skopeo copy \
+        if skopeo copy \
             --authfile /etc/crio/openshift-pull-secret \
             "docker://$image" \
-            "dir:/usr/lib/container-images/${safe_name}"; \
-        echo "$image" > "/usr/lib/container-images/${safe_name}.ref"; \
+            "dir:/usr/lib/container-images/${safe_name}"; then \
+            echo "$image" > "/usr/lib/container-images/${safe_name}.ref"; \
+        else \
+            echo "WARNING: Failed to pre-cache $image, will be pulled at runtime" >&2; \
+            rm -rf "/usr/lib/container-images/${safe_name}"; \
+        fi; \
     done
 
 RUN systemctl enable microshift-make-rshared.service
@@ -164,7 +170,7 @@ RUN sed -i "s/NODE0_STORAGE_INTERFACE/${NODE0_STORAGE_INTERFACE}/g" /etc/microsh
 
 RUN sed -i "s/NODE1_IP_ADDRESS/${NODE1_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_CLUSTER_INTERFACE$/${NODE1_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
-RUN sed -i "s/NODE1_CLUSTER_INTERFACE_MAC_ADDRESS/$${NODE1_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_CLUSTER_INTERFACE_MAC_ADDRESS$/${NODE1_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_INSTALL_DEVICE/${NODE1_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_STORAGE_INTERFACE/${NODE1_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 
@@ -176,7 +182,7 @@ RUN sed -i "s/ARBITER_STORAGE_INTERFACE/${ARBITER_STORAGE_INTERFACE}/g" /etc/mic
 
 RUN sed -i "s/ACP_API_IP/${ACP_API_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_INGRESS_IP/${ACP_INGRESS_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
-RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s|PULL_SECRET|${PULL_SECRET}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s|SSH_KEY|${SSH_KEY}|g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_DNS_SERVER/${ACP_DNS_SERVER}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_ROUTER_ADDRESS/${ACP_ROUTER_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
@@ -191,7 +197,7 @@ RUN sed -i "s/OPENSHIFT_VERSION/${OPENSHIFT_VERSION}/g" /etc/microshift/manifest
 RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
 RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microshift/manifests.d/oc-mirror/manifests/configmap.yaml
 RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/oc-mirror/manifests/job.yaml
-RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/oc-mirror/manifests/secret.yaml
+RUN sed -i "s|PULL_SECRET|${PULL_SECRET}|g" /etc/microshift/manifests.d/oc-mirror/manifests/secret.yaml
 
 # Routing/etc setup
 RUN chmod +x /usr/local/bin/setup-network.sh
@@ -207,7 +213,18 @@ RUN systemctl enable load-images.service
 RUN systemctl set-default graphical.target
 RUN systemctl enable cockpit.socket
 
+# Allow root SSH login with password
+RUN echo "PermitRootLogin yes" > /etc/ssh/sshd_config.d/99-allow-root.conf
+
+# Add SSH key for passwordless access
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
+RUN echo "${SSH_KEY}" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+
+# Allow root login to Cockpit
+RUN echo "" > /etc/cockpit/disallowed-users
+
 # Set hostname
+ARG HOSTNAME=bootstrap
 RUN echo "${HOSTNAME}" > /etc/hostname
 
 # Helper scripts

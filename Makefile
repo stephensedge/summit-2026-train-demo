@@ -59,7 +59,7 @@ create-bootstrap-install-iso: build-bootstrap
 	localhost/bootstrap:latest \
 	$(KICKSTART) \
 	$(RHEL_BOOT_ISO) \
-	"$(pwd)/install-bootstrap.iso"
+	"$(CURDIR)/install-bootstrap.iso"
 
 clean:
 	@echo "==> Cleaning up exports..."

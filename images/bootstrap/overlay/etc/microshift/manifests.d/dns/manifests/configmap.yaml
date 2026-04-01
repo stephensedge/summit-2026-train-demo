@@ -6,7 +6,7 @@ metadata:
 data: 
   named.conf: |
     options {
-            listen-on port 53 { 192.168.100.1; };
+            listen-on port 53 { 10.26.100.1; };
             directory "/var/named";
             recursion yes;
             allow-query { any; };
@@ -26,7 +26,7 @@ data:
     };
 
     // reverse
-    zone "100.168.192.in-addr.arpa" IN {
+    zone "100.26.10.in-addr.arpa" IN {
             type master;
             file "/etc/named/reverse.zone";
     };
@@ -41,16 +41,16 @@ data:
                             )
     ;
                 IN NS   dns.summit2026.com.
-    dns IN A 192.168.100.1
-    bootstrap IN A 192.168.100.1
-    api.acp IN A 192.168.100.10
-    api-int.acp IN A 192.168.100.10
-    *.apps.acp IN A 192.168.100.11
-    api.bootstrap IN A 192.168.100.1
-    *.apps.bootstrap IN A 192.168.100.1
-    node0 192.168.100.20
-    node1 192.168.100.21
-    arbiter 192.168.100.22
+    dns IN A 10.26.100.1
+    bootstrap IN A 10.26.100.1
+    api.acp IN A 10.26.100.10
+    api-int.acp IN A 10.26.100.10
+    *.apps.acp IN A 10.26.100.11
+    api.bootstrap IN A 10.26.100.1
+    *.apps.bootstrap IN A 10.26.100.1
+    node0 10.26.100.20
+    node1 10.26.100.21
+    arbiter 10.26.100.22
 
   reverse.zone: |
     $TTL    86400

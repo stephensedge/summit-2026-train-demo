@@ -28,7 +28,7 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       hostAliases:
-      - ip: "192.168.100.1"
+      - ip: "10.26.100.1"
         hostnames:
         - "resources-network-install.apps.bootstrap.BASE_DNS_ZONE"
       initContainers:
@@ -92,7 +92,7 @@ spec:
         app.kubernetes.io/part-of: bootstrap
     spec:
       hostAliases:
-      - ip: "192.168.100.1"
+      - ip: "10.26.100.1"
         hostnames:
         - "registry-registry.apps.bootstrap.BASE_DNS_ZONE"
       terminationGracePeriodSeconds: 10
