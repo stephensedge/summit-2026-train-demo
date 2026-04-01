@@ -1,6 +1,5 @@
 [Unit]
 Description=Load pre-cached images
-ConditionPathExistsGlob=/usr/lib/container-images/*.tar
 Before=microshift.service
 After=network.service
 
