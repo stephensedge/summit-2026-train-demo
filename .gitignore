@@ -7,3 +7,6 @@ images/execution-environment/shimx64.efi
 images/execution-environment/grubx64.efi
 .DS_Store
 render/
+install.iso
+images/bootstrap/overlay/etc/microshift/manifests.d/dashboard
+kickstarts/advantech.ks
