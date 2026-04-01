@@ -75,6 +75,7 @@ RUN mkdir /tmp/pxe-resources
 ADD grub.cfg /tmp/pxe-resources/grub.cfg
 ADD shimx64.efi /tmp/pxe-resources/shimx64.efi
 ADD grubx64.efi /tmp/pxe-resources/grubx64.efi
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /tmp/pxe-resources/grub.cfg
 
 WORKDIR /runner
 LABEL ansible-execution-environment=true
