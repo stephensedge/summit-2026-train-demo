@@ -1,19 +1,18 @@
 # --- Variables ---
-#COMPONENTS := dns dhcp
-COMPONENTS       := dns dhcp oc-mirror execution-environment tftp
-BOOTSTRAP_IMG    := localhost/bootstrap:latest
-COMPONENT_IMGS        := $(foreach component,$(COMPONENTS),localhost/$(component):latest)
+COMPONENTS               := dns dhcp oc-mirror execution-environment tftp
+BOOTSTRAP_IMG            := localhost/bootstrap:latest
+COMPONENT_IMGS           := $(foreach component,$(COMPONENTS),localhost/$(component):latest)
 
-BUILD_TARGETS  := $(addprefix build-, $(COMPONENTS))
-EXPORT_TARGETS := $(addprefix export-, $(COMPONENTS))
+BUILD_TARGETS            := $(addprefix build-, $(COMPONENTS))
+EXPORT_TARGETS           := $(addprefix export-, $(COMPONENTS))
 
-EXPORT_DIR        ?= ./images/bootstrap/overlay/usr/lib/container-images
-BUILD_ARG_FILE    ?= ./ignore/build-args.txt
-BUILD_USER_FILE   ?= ./ignore/ansible-user.txt
-VNC_PASSWORD_FILE ?= ./ignore/vnc-password.txt
+EXPORT_DIR               ?= ./images/bootstrap/overlay/usr/lib/container-images
+BUILD_ARG_FILE           ?= ./ignore/build-args.txt
+BUILD_USER_FILE          ?= ./ignore/ansible-user.txt
+VNC_PASSWORD_FILE        ?= ./ignore/vnc-password.txt
 
-KICKSTART	   ?= ./kickstarts/default.ks
-RHEL_BOOT_ISO  ?= ./rhel-9.6-x86_64-boot.iso
+KICKSTART	             ?= ./kickstarts/default.ks
+RHEL_BOOT_ISO            ?= ./rhel-9.6-x86_64-boot.iso
 BOOTSTRAP_ISO_OUTPUT_DIR ?= /tmp/install-bootstrap.iso
 
 # --- Targets ---
