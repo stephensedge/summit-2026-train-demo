@@ -7,8 +7,10 @@ COMPONENT_IMGS        := $(foreach component,$(COMPONENTS),localhost/$(component
 BUILD_TARGETS  := $(addprefix build-, $(COMPONENTS))
 EXPORT_TARGETS := $(addprefix export-, $(COMPONENTS))
 
-EXPORT_DIR     ?= ./images/bootstrap/overlay/usr/lib/container-images
-BUILD_ARG_FILE ?= ./ignore/build-args.txt
+EXPORT_DIR        ?= ./images/bootstrap/overlay/usr/lib/container-images
+BUILD_ARG_FILE    ?= ./ignore/build-args.txt
+BUILD_USER_FILE   ?= ./ignore/ansible-user.txt
+VNC_PASSWORD_FILE ?= ./ignore/vnc-password.txt
 
 KICKSTART	   ?= ./kickstarts/default.ks
 RHEL_BOOT_ISO  ?= ./rhel-9.6-x86_64-boot.iso
@@ -17,7 +19,7 @@ BOOTSTRAP_ISO_OUTPUT_DIR ?= /tmp/install-bootstrap.iso
 # --- Targets ---
 .PHONY: all clean build-bootstrap build-all export-all create-boostrap-install-iso
 
-all: build-bootstrap
+all: create-bootstrap-install-iso
 
 $(EXPORT_DIR):
 	mkdir -p $(EXPORT_DIR)
@@ -51,6 +53,8 @@ build-bootstrap: export-all
 	podman build \
 	--tag localhost/bootstrap:latest \
 	--build-arg-file $(BUILD_ARG_FILE) \
+	--secret id=ansible-user,src=$(BUILD_USER_FILE) \
+	--secret id=vnc-password,src=$(VNC_PASSWORD_FILE) \
 	./images/bootstrap/
 
 create-bootstrap-install-iso: build-bootstrap
@@ -59,7 +63,7 @@ create-bootstrap-install-iso: build-bootstrap
 	localhost/bootstrap:latest \
 	$(KICKSTART) \
 	$(RHEL_BOOT_ISO) \
-	"$(pwd)/install-bootstrap.iso"
+	"$(CURDIR)/install-bootstrap.iso"
 
 clean:
 	@echo "==> Cleaning up exports..."
