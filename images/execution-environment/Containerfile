@@ -71,6 +71,7 @@ RUN microdnf install nmstate sshpass subscription-manager dnf-utils dnf -y && \
 
 RUN mkdir -p /runner/{playbooks,inventory,variables}
 
+ARG BASE_DNS_ZONE
 RUN mkdir /tmp/pxe-resources
 ADD grub.cfg /tmp/pxe-resources/grub.cfg
 ADD shimx64.efi /tmp/pxe-resources/shimx64.efi
