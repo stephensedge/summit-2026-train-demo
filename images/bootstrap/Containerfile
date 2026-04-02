@@ -43,6 +43,7 @@ RUN dnf \
     butane \
     nmstate \
     jq \
+    tigervnc-server \
     && dnf clean all \
     && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
 
@@ -128,6 +129,14 @@ ARG ARBITER_STORAGE_IP_ADDRESS
 # Add the overlays
 ADD overlay/ /
 
+# Create user Ansible
+RUN useradd -M -s /bin/bash ansible
+RUN --mount=type=secret,id=ansible-user cat /run/secrets/ansible-user | chpasswd
+RUN usermod -aG wheel ansible
+RUN --mount=type=secret,id=vnc-password cat /run/secrets/vnc-password | vncpasswd -f > /usr/share/ansible-vnc-defaults/passwd
+RUN firewall-offline-cmd --add-service=vnc-server --zone=external
+RUN systemctl enable vncserver@:1.service
+
 # Microshift setup
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/ovn.yaml
@@ -161,16 +170,19 @@ RUN sed -i "s/NODE0_CLUSTER_INTERFACE$/${NODE0_CLUSTER_INTERFACE}/g" /etc/micros
 RUN sed -i "s/NODE0_CLUSTER_INTERFACE_MAC_ADDRESS$/${NODE0_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE0_INSTALL_DEVICE/${NODE0_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE0_STORAGE_INTERFACE/${NODE0_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE0_STORAGE_IP_ADDRESS/${NODE0_STORAGE_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_IP_ADDRESS/${NODE1_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_CLUSTER_INTERFACE$/${NODE1_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_CLUSTER_INTERFACE_MAC_ADDRESS/$${NODE1_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_INSTALL_DEVICE/${NODE1_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/NODE1_STORAGE_INTERFACE/${NODE1_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/NODE1_STORAGE_IP_ADDRESS/${NODE1_STORAGE_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ARBITER_IP_ADDRESS/${ARBITER_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ARBITER_CLUSTER_INTERFACE$/${ARBITER_CLUSTER_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS$/${ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ARBITER_INSTALL_DEVICE/${ARBITER_INSTALL_DEVICE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ARBITER_STORAGE_INTERFACE/${ARBITER_STORAGE_INTERFACE}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
+RUN sed -i "s/ARBITER_STORAGE_IP_ADDRESS/${ARBITER_STORAGE_IP_ADDRESS}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_API_IP/${ACP_API_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/ACP_INGRESS_IP/${ACP_INGRESS_IP}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/network-install/manifests/configmap.yaml
@@ -209,6 +221,9 @@ RUN echo "${HOSTNAME}" > /etc/hostname
 
 # Helper scripts
 RUN chmod +x /usr/local/bin/get-microshift-kubeconfig.sh
+
+# Setup VNC
+
 
 # # Cleanup
 # RUN subscription-manager clean
