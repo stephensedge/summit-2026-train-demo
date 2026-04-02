@@ -11,3 +11,4 @@ install.iso
 images/bootstrap/overlay/etc/microshift/manifests.d/dashboard
 kickstarts/advantech.ks
 install-bootstrap.iso
+iona/
