@@ -442,32 +442,7 @@ data:
           enabled: false
         prometheusK8s:
            retention: 24h
-  10-catalogsource.yaml: |
-    ---
-    apiVersion: operators.coreos.com/v1alpha1
-    kind: CatalogSource
-    metadata:
-      annotations:
-        createdBy: oc-mirror v2
-      name: cs-redhat-operator-index-v4-20
-      namespace: openshift-marketplace
-    spec:
-      image: registry-registry.apps.bootstrap.BASE_DNS_ZONE/redhat/redhat-operator-index:v4.20
-      sourceType: grpc
-  11-clustercatalog.yaml: |
-    ---
-    apiVersion: olm.operatorframework.io/v1
-    kind: ClusterCatalog
-    metadata:
-      annotations:
-        createdBy: oc-mirror v2
-      name: cc-redhat-operator-index-v4-20
-    spec:
-      priority: 0
-      source:
-        image:
-          ref: registry-registry.apps.bootstrap.BASE_DNS_ZONE/redhat/redhat-operator-index:v4.20
-        type: Image
+
   100-portworx-namespace.yaml: |
     ---
     apiVersion: v1
