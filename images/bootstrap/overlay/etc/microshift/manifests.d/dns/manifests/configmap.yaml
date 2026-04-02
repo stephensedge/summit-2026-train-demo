@@ -48,9 +48,9 @@ data:
     *.apps.acp IN A 192.168.100.11
     api.bootstrap IN A 192.168.100.1
     *.apps.bootstrap IN A 192.168.100.1
-    node0 192.168.100.20
-    node1 192.168.100.21
-    arbiter 192.168.100.22
+    node0 IN A 192.168.100.20
+    node1 IN A 192.168.100.21
+    arbiter IN A 192.168.100.22
 
   reverse.zone: |
     $TTL    86400
