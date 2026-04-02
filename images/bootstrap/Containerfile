@@ -202,10 +202,11 @@ RUN sed -i "s/REGISTRY_ADMIN_PASSWORD/${REGISTRY_ADMIN_PASSWORD}/g" /etc/microsh
 RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/manifests.d/oc-mirror/manifests/job.yaml
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/microshift/manifests.d/oc-mirror/manifests/secret.yaml
 
-# Routing/etc setup
+# Routing/scripts/etc setup
 RUN chmod +x /usr/local/bin/setup-network.sh
 RUN sed -i "s/EXTERNAL_INTERFACE/${EXTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /usr/local/bin/setup-network.sh
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /usr/local/bin/get-acp-kubeconfig.sh
 RUN systemctl enable setup-network.service
 
 # Load images into podman storage on boot
@@ -221,13 +222,12 @@ RUN echo "${HOSTNAME}" > /etc/hostname
 
 # Helper scripts
 RUN chmod +x /usr/local/bin/get-microshift-kubeconfig.sh
+RUN chmod +x /usr/local/bin/force-bootstrap-deploy.sh
+RUN chmod +x /usr/local/bin/get-acp-kubeconfig.sh
 
-# Setup VNC
-
-
-# # Cleanup
-# RUN subscription-manager clean
-# RUN rm -rf /var/lib/rhsm /var/log/rhsm
+# Cleanup
+RUN subscription-manager clean
+RUN rm -rf /var/lib/rhsm /var/log/rhsm
 
 # Disable auto-updating
 RUN systemctl mask bootc-fetch-apply-updates.timer
