@@ -216,7 +216,7 @@ data:
       pre_tasks:
         - name: Check that this hasn't already been run
           ansible.builtin.stat:
-            path: /pubsrv/auth/kubeconfig
+            path: /pubsrv/kubeconfig
           register: _install_status
       tasks:
         - name: Create install resources
@@ -601,7 +601,7 @@ data:
       kind: ClusterRole
       name: cluster-admin
       apiGroup: rbac.authorization.k8s.io
-  9904-postinall-nmstate: |
+  9904-postinall-nmstate.yaml: |
     ---
     apiVersion: batch/v1
     kind: Job
@@ -712,7 +712,7 @@ data:
 
               echo "Operator version pinned."
 
-  9999-postinstall-job: |
+  9999-postinstall-job.yaml: |
     ---
     apiVersion: batch/v1
     kind: Job
