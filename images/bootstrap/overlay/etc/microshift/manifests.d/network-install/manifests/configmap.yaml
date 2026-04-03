@@ -371,10 +371,14 @@ data:
                 [Unit]
                 Description=Wipe filesystem signatures on raw partitions
                 Before=kubelet.service
+                ConditionPathExists=!/var/lib/px-raw-partitions-wiped.stamp
+
                 [Service]
                 Type=oneshot
                 ExecStart=-/usr/sbin/wipefs -af /dev/disk/by-partlabel/px-metadata
+                ExecStartPost=/bin/touch /var/lib/px-raw-partitions-wiped.stamp
                 RemainAfterExit=yes
+                
                 [Install]
                 WantedBy=multi-user.target
               enabled: true
