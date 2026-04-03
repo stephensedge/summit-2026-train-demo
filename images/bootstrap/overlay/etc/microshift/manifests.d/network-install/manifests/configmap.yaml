@@ -680,7 +680,7 @@ data:
                       state: up
                       ipv4:
                         address:
-                          - ip: NODE2_STORAGE_IP_ADDRESS
+                          - ip: NODE1_STORAGE_IP_ADDRESS
                             prefix-length: 24
                         enabled: true
                         dhcp: false
