@@ -9,5 +9,9 @@ images/execution-environment/grubx64.efi
 render/
 .claude/
 CLAUDE.md
+install.iso
 install-bootstrap.iso
 rhel-9.6-x86_64-boot.iso
+images/bootstrap/overlay/etc/microshift/manifests.d/dashboard
+kickstarts/advantech.ks
+iona/

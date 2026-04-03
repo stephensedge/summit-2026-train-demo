@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: dns-configmap
-data: 
+data:
   named.conf: |
     options {
             listen-on port 53 { 10.26.100.1; };
@@ -48,9 +48,9 @@ data:
     *.apps.acp IN A 10.26.100.11
     api.bootstrap IN A 10.26.100.1
     *.apps.bootstrap IN A 10.26.100.1
-    node0 10.26.100.20
-    node1 10.26.100.21
-    arbiter 10.26.100.22
+    node0 IN A 10.26.100.20
+    node1 IN A 10.26.100.21
+    arbiter IN A 10.26.100.22
 
   reverse.zone: |
     $TTL    86400
