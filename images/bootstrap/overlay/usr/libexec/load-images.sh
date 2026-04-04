@@ -37,8 +37,7 @@ for tar_file in "$IMAGE_DIR"/*.tar; do
     if podman load -i "$tar_file"; then
         echo "Success: $tar_file"
     else
-        echo "Failed to load standard archive $tar_file" >&2
-        exit 1
+        echo "WARNING: Failed to load $tar_file, skipping" >&2
     fi
 done
 
