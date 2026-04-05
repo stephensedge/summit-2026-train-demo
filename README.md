@@ -1,116 +1,247 @@
-# summit-2026-train-demo
-This repo contains the automation, code, etc, to set up the train demo from RH Summit 2026.
+# Bootstrap Build - Edge Lab
+
+Forked from [RedHatEdge/summit-2026-train-demo](https://github.com/RedHatEdge/summit-2026-train-demo). Customized for home lab deployment with 10.26.100.0/24 internal cluster network.
 
 ## Architecture
-TODO
 
-## Requirements
-- ~300GB of space, available to be handed out by LVM
-- at least 8GB of RAM is recommended
-- Two network interfaces - one as the "external" interface, and one for the "internal" network
+- **Bootstrap NUC** - RHEL 9.6 bootc + Microshift 4.20 running DNS, DHCP, TFTP, Harbor registry, oc-mirror
+- **NODE0 / NODE1** - OCP 4.20 masters (MS-01 hardware, NVMe drives)
+- **ARBITER** - OCP 4.20 arbiter for etcd quorum (Intel NUC, SATA drives)
 
-## Required Inputs
-The following items are required:
-rhel-9.6-boot-x86_64.iso - Download this from the [customer portal](https://access.cdn.redhat.com/content/origin/files/sha256/36/36a06d4c36605550c2626d5af9ee84fc2badce9e71010b7e94a9a469a0335d63/rhel-9.6-x86_64-boot.iso?user=c4a941d10d1dfd979fe3d43a671bd992&_auth_=1775179399_b650c042f24408bfffacf11033e35194).
+### Network Layout
 
-Mount the iso and grab the following file:
+| Network | Subnet | Purpose |
+|---------|--------|---------|
+| External (eno1) | 192.168.100.0/24 (DHCP) | Home LAN, admin access |
+| Internal (enp0s20f0u2) | 10.26.100.0/24 | Cluster network, PXE, DNS, DHCP |
+| Storage (VLAN 18) | 10.26.108.0/24 | Portworx storage (10GbE MikroTik) |
+
+## Prerequisites
+
+### On your build machine (laptop)
+
+- `podman`, `skopeo`, `mkksiso` installed
+- Logged into `registry.redhat.io`: `podman login registry.redhat.io`
+- RHEL 9.6 boot ISO at `./rhel-9.6-x86_64-boot.iso`
+- EFI files at `./images/execution-environment/`:
+  - `shimx64.efi` (from `/boot/efi/EFI/redhat/shimx64.efi` on a RHEL 9 system)
+  - `grubx64.efi` (from `/boot/efi/EFI/redhat/grubx64.efi` on a RHEL 9 system)
+
+### Configuration files in `./ignore/`
+
+These are gitignored (contain secrets). Create them before building:
+
+**`build-args.txt`** - See the example in this README below.
+
+**`ansible-user.txt`**:
 ```
-EFI/BOOT/grubx64.efi
-```
-
-Put it in: `./images/execution-environment/`
-
-From your local Linux system, grab your shim file from:
-```
-/boot/efi/EFI/fedora/grubx64.efi
-```
-
-Put it in: `./images/execution-environment/`
-
-Copy the following into a file (such as build-args.txt) with the appropriate values:
-```
-# Note - do not single-quote anything in this file, even if there are specical characters
-# Quoting anything will break the deployment
-RHSM_ORG=your-org-number
-RHSM_AK=your-activation-key
-PULL_SECRET=your-pull-secret
-SSH_KEY=your-ssh-key
-EXTERNAL_INTERFACE=enp3s0
-INTERNAL_INTERFACE=eno1
-RHEL_BOOT_ISO=~/Downloads/rhel-9.6-x86_64-boot.iso
-KICKSTART=~/path/to/kickstart.ks
-BASE_DNS_ZONE=whatever.com
-REGISTRY_ADMIN_PASSWORD=password
-BOOTSTRAP_USER_PASSWORD=password
-
-# OCP 4.20.14 has been tested, however anything "stable" should work
-OPENSHIFT_VERSION=4.20.14
-ACP_API_IP=192.168.100.10
-ACP_INGRESS_IP=192.168.100.11
-ACP_DNS_SERVER=192.168.100.1
-ACP_ROUTER_ADDRESS=192.168.100.1
-
-NODE0_IP_ADDRESS=192.168.100.20
-NODE0_CLUSTER_INTERFACE=enp3s0
-NODE0_CLUSTER_INTERFACE_MAC_ADDRESS=00:00:01:04:0c:da
-NODE0_INSTALL_DEVICE=eui.00000000000000000026b768710aab15
-NODE0_STORAGE_INTERFACE=enp2s0
-NODE0_STORAGE_IP_ADDRESS=192.168.108.20
-
-NODE1_IP_ADDRESS=192.168.100.21
-NODE1_CLUSTER_INTERFACE=enp3s0
-NODE1_CLUSTER_INTERFACE_MAC_ADDRESS=00:00:01:04:18:fa
-NODE1_INSTALL_DEVICE=eui.00000000000000000026b768710aaeb5
-NODE1_STORAGE_INTERFACE=enp2s0
-NODE1_STORAGE_IP_ADDRESS=192.168.108.21
-
-NODES_STORAGE_DEVICE=/dev/disk/by-path/pci-0000:01:00.0-nvme-1
-
-ARBITER_IP_ADDRESS=192.168.100.22
-ARBITER_CLUSTER_INTERFACE=enp1s0
-ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS=00:00:01:03:09:89
-ARBITER_INSTALL_DEVICE=eui.00000000000000000026b7686f39b445
-ARBITER_STORAGE_INTERFACE=enp2s0
-ARBITER_STORAGE_IP_ADDRESS=192.168.108.22
+ansible:YOUR_PASSWORD
 ```
 
-Create two files to house the password for `ansible`, the user created in the bootstrap image, and a vnc password:
+**`vnc-password.txt`**:
 ```
-ansible-user.txt
-vnc-password.txt
-```
-
-In the ansible-user.txt file, format it accordingly:
-```
-ansible:THEPASSWORDYOUWANT
+YOUR_VNC_PASSWORD
 ```
 
-In the vnc-password.txt file, simply enter the desired password:
+### SSH Key
+
+Generate a key pair you'll use to access the nodes:
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_bootstrap -N "" -C "yourname@lab"
 ```
-YOURPASSWORDHERE
-```
+
+Put the PUBLIC key in `build-args.txt` as `SSH_KEY=`.
 
 ## Building
-The provided makefile will build the required images and create an installation ISO - simply run `make` to kick off the process.
 
-The makefile contains some variables at the top:
-```
-EXPORT_DIR               ?= ./images/bootstrap/overlay/usr/lib/container-images
-BUILD_ARG_FILE           ?= ./ignore/build-args.txt
-BUILD_USER_FILE          ?= ./ignore/ansible-user.txt
-VNC_PASSWORD_FILE        ?= ./ignore/vnc-password.txt
+### 1. Build the ISO
 
-KICKSTART	             ?= ./kickstarts/default.ks
-RHEL_BOOT_ISO            ?= ./rhel-9.6-x86_64-boot.iso
-BOOTSTRAP_ISO_OUTPUT_DIR ?= /tmp/install-bootstrap.iso
+```bash
+cd /path/to/bootstrap-build
+make create-bootstrap-install-iso
 ```
 
-These can be overriden on the command line if needed:
-```
-make KICKSTART=./kickstarts/advantech.ks RHEL_BOOT_ISO=~/Downloads/rhel-9.6-x86_64-boot.iso
+This chains the full pipeline: builds all component images (DNS, DHCP, TFTP, oc-mirror, execution-environment), exports them, builds the bootstrap bootc image, and creates the installer ISO.
+
+Output: `install-bootstrap.iso` (~7 GB)
+
+### 2. Write to USB
+
+```bash
+# Identify your USB drive
+lsblk
+
+# Write (replace sdX with your USB device!)
+sudo dd if=install-bootstrap.iso of=/dev/sdX bs=4M status=progress oflag=direct
+sync
 ```
 
-To cleanup what's been built, simply run:
-```
+### 3. Clean up build artifacts
+
+```bash
 make clean
+sudo rm -f install-bootstrap.iso
+podman system prune -af
+```
+
+## Deploying the Bootstrap NUC
+
+### 1. Install
+
+- Boot the NUC from the USB drive
+- Anaconda runs the kickstart automatically
+- NUC reboots into the bootstrap system
+
+### 2. First boot setup
+
+```bash
+ssh-keygen -R 192.168.100.156
+ssh -i ~/.ssh/id_bootstrap root@<NUC_IP>
+
+export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
+echo 'export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig' >> ~/.bashrc
+```
+
+### 3. Copy SSH key for node access
+
+From your laptop:
+```bash
+scp ~/.ssh/id_bootstrap root@<NUC_IP>:/root/.ssh/id_bootstrap
+ssh -i ~/.ssh/id_bootstrap root@<NUC_IP> 'chmod 600 /root/.ssh/id_bootstrap'
+```
+
+### 4. Wait for all services
+
+```bash
+# Watch pods come up
+watch oc get pods -A
+```
+
+Wait for these to be Running/Completed:
+- `lvms-operator` + `vg-manager` (storage)
+- All `harbor-*` pods (registry)
+- `oc-mirror` shows **Completed** (mirrors OCP images to Harbor, takes ~10 min)
+
+### 5. Start network-install
+
+After oc-mirror completes:
+```bash
+oc delete pod -n network-install --all
+sleep 180 && oc get pods -n network-install
+```
+
+All three should show Running:
+- `generate-install-media-0` (generates PXE boot files)
+- `pubsrv` (serves rootfs + kubeconfig over HTTP)
+- `tftp-0` (serves PXE boot files)
+
+## Installing OCP on the Nodes
+
+### 1. PXE boot all three nodes
+
+- Plug NODE0, NODE1, and ARBITER into the internal network
+- Set BIOS to network/PXE boot
+- Power on all three simultaneously
+
+The GRUB menu auto-selects "Deploy OCP Cluster" after 60 seconds.
+
+### 2. Monitor the install
+
+From the bootstrap NUC:
+
+```bash
+# Watch for DHCP leases (confirms PXE boot)
+oc logs -n dhcp dhcp-0 | grep DHCPACK | awk '{print $3, $4}' | sort -u
+
+# Watch for static IPs (confirms NMState applied)
+watch -n10 'ping -c1 -W1 10.26.100.20 2>&1 | tail -1; ping -c1 -W1 10.26.100.21 2>&1 | tail -1; ping -c1 -W1 10.26.100.22 2>&1 | tail -1'
+
+# SSH into the rendezvous node (NODE0) to watch agent progress
+ssh -i /root/.ssh/id_bootstrap -o StrictHostKeyChecking=no core@10.26.100.20 'sudo journalctl TAG=agent -f'
+
+# Check API VIP
+ping -c1 -W1 10.26.100.10 && echo "API VIP up" || echo "API VIP not yet"
+```
+
+### 3. Access the OCP cluster
+
+Once the API VIP (10.26.100.10) is up:
+```bash
+curl -s http://pubsrv-network-install.apps.bootstrap.summit2026.com/kubeconfig -o /root/acp-kubeconfig
+export KUBECONFIG=/root/acp-kubeconfig
+oc get nodes
+oc get clusterversion
+```
+
+The kubeadmin password:
+```bash
+curl -s http://pubsrv-network-install.apps.bootstrap.summit2026.com/kubeadmin-password
+```
+
+## Pulling upstream updates
+
+```bash
+git fetch upstream
+git merge upstream/main
+# Resolve any conflicts (keep 10.26.100.x IPs, console=tty0, etc.)
+```
+
+## Example build-args.txt
+
+```
+RHSM_ORG=your-org-number
+RHSM_AK=your-activation-key
+PULL_SECRET={"auths":{...your-pull-secret...}}
+SSH_KEY=ssh-ed25519 AAAA... yourname@lab
+EXTERNAL_INTERFACE=eno1
+INTERNAL_INTERFACE=enp0s20f0u2
+BASE_DNS_ZONE=summit2026.com
+REGISTRY_ADMIN_PASSWORD=your-registry-password
+OPENSHIFT_VERSION=4.20.14
+HOSTNAME=bootstrap
+
+ACP_API_IP=10.26.100.10
+ACP_INGRESS_IP=10.26.100.11
+ACP_DNS_SERVER=10.26.100.1
+ACP_ROUTER_ADDRESS=10.26.100.1
+
+NODE0_IP_ADDRESS=10.26.100.20
+NODE0_CLUSTER_INTERFACE=eno1
+NODE0_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:01
+NODE0_INSTALL_DEVICE=eui.your-nvme-eui-id
+NODE0_STORAGE_INTERFACE=enp6s0f4u2c2
+NODE0_STORAGE_IP_ADDRESS=10.26.108.20
+
+NODE1_IP_ADDRESS=10.26.100.21
+NODE1_CLUSTER_INTERFACE=eno1
+NODE1_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:02
+NODE1_INSTALL_DEVICE=eui.your-nvme-eui-id
+NODE1_STORAGE_INTERFACE=enp5s0f4u2c2
+NODE1_STORAGE_IP_ADDRESS=10.26.108.21
+
+NODES_STORAGE_DEVICE=/dev/disk/by-id/nvme-eui.your-storage-nvme-eui
+
+ARBITER_IP_ADDRESS=10.26.100.22
+ARBITER_CLUSTER_INTERFACE=eno1
+ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:03
+ARBITER_INSTALL_DEVICE=0x-your-wwn-id
+ARBITER_STORAGE_INTERFACE=enp0s20f0u2
+ARBITER_STORAGE_IP_ADDRESS=10.26.108.22
+```
+
+### Getting stable disk IDs
+
+Boot each node from a RHEL 9 live ISO and run:
+```bash
+# NVMe drives (use eui. identifiers)
+ls -la /dev/disk/by-id/ | grep nvme-eui
+
+# SATA drives (use wwn- identifiers, strip the wwn- prefix)
+ls -la /dev/disk/by-id/ | grep wwn-
+```
+
+### Getting MAC addresses
+
+```bash
+ip link show eno1 | grep ether
 ```
