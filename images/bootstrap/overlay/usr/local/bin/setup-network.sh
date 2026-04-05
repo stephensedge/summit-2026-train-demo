@@ -50,4 +50,7 @@ fi
 retry "nmcli connection up EXTERNAL_INTERFACE"
 retry "nmcli connection up lan"
 
+# Set hostname
+hostnamectl set-hostname bootstrap
+
 echo "Network setup complete."
