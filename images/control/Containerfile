@@ -1,0 +1,29 @@
+FROM registry.redhat.io/rhel9/python-312-minimal:9.7 as pip-worker
+RUN mkdir /tmp/pip
+ADD requirements.txt /tmp/pip/requirements.txt
+WORKDIR /tmp/pip
+RUN python -m pip wheel --no-cache-dir --wheel-dir=/tmp/wheels -r requirements.txt
+
+FROM registry.redhat.io/rhel9/python-312-minimal:9.7
+
+USER 0
+
+ENV MQTT_BROKER="localhost"
+ENV MQTT_PORT="1883"
+ENV MQTT_TOPIC="system/motor_1"
+ENV PUSHGATEWAY_URL="http://localhost:9091"
+
+RUN mkdir /opt/control
+ADD control.py /opt/control/control.py
+RUN chmod +x /opt/control/control.py
+
+RUN mkdir /tmp/pip
+ADD requirements.txt /tmp/pip/requirements.txt
+COPY --from=pip-worker /tmp/wheels /tmp/wheels
+RUN python -m pip install --no-index --no-cache-dir --find-links=/tmp/wheels -r /tmp/pip/requirements.txt
+RUN rm -rf /tmp/wheels /tmp/pip
+
+WORKDIR /opt/control
+
+ENTRYPOINT ["python"]
+CMD ["/opt/control/control.py"]
