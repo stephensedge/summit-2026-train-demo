@@ -18,7 +18,7 @@ data:
           - name: NODE0_CLUSTER_INTERFACE
             macAddress: NODE0_CLUSTER_INTERFACE_MAC_ADDRESS
         rootDeviceHints:
-          wwn: NODE0_INSTALL_DEVICE
+          deviceName: NODE0_INSTALL_DEVICE
         networkConfig:
           interfaces:
           - name: NODE0_CLUSTER_INTERFACE
@@ -50,7 +50,7 @@ data:
           - name: NODE1_CLUSTER_INTERFACE
             macAddress: NODE1_CLUSTER_INTERFACE_MAC_ADDRESS
         rootDeviceHints:
-          wwn: NODE1_INSTALL_DEVICE
+          deviceName: NODE1_INSTALL_DEVICE
         networkConfig:
           interfaces:
           - name: NODE1_CLUSTER_INTERFACE
@@ -82,7 +82,7 @@ data:
           - name: ARBITER_CLUSTER_INTERFACE
             macAddress: ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS
         rootDeviceHints:
-          wwn: ARBITER_INSTALL_DEVICE
+          deviceName: /dev/sda
         networkConfig:
           interfaces:
           - name: ARBITER_CLUSTER_INTERFACE
