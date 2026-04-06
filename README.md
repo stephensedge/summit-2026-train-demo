@@ -2,6 +2,8 @@
 
 Forked from [RedHatEdge/summit-2026-train-demo](https://github.com/RedHatEdge/summit-2026-train-demo). Customized for home lab deployment with 10.26.100.0/24 internal cluster network.
 
+> **Note:** The IPs, MACs, device paths, and credentials shown throughout this README reflect my specific lab environment. Substitute your own values where needed.
+
 ## Architecture
 
 - **Bootstrap NUC** - RHEL 9.6 bootc + Microshift 4.20 running DNS, DHCP, TFTP, Harbor registry, oc-mirror
@@ -71,7 +73,7 @@ Output: `install-bootstrap.iso` (~7 GB)
 # Identify your USB drive
 lsblk
 
-# Write (replace sdX with your USB device!)
+# Write
 sudo dd if=install-bootstrap.iso of=/dev/sdX bs=4M status=progress oflag=direct
 sync
 ```
@@ -95,8 +97,7 @@ podman system prune -af
 ### 2. First boot setup
 
 ```bash
-ssh-keygen -R 192.168.100.156
-ssh -i ~/.ssh/id_bootstrap root@<NUC_IP>
+ssh -i ~/.ssh/id_bootstrap root@192.168.100.156
 
 export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig
 echo 'export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig' >> ~/.bashrc
@@ -106,8 +107,8 @@ echo 'export KUBECONFIG=/var/lib/microshift/resources/kubeadmin/kubeconfig' >> ~
 
 From your laptop:
 ```bash
-scp ~/.ssh/id_bootstrap root@<NUC_IP>:/root/.ssh/id_bootstrap
-ssh -i ~/.ssh/id_bootstrap root@<NUC_IP> 'chmod 600 /root/.ssh/id_bootstrap'
+scp ~/.ssh/id_bootstrap root@192.168.100.156:/root/.ssh/id_bootstrap
+ssh -i ~/.ssh/id_bootstrap root@192.168.100.156 'chmod 600 /root/.ssh/id_bootstrap'
 ```
 
 ### 4. Wait for all services
@@ -186,17 +187,36 @@ git merge upstream/main
 # Resolve any conflicts (keep 10.26.100.x IPs, console=tty0, etc.)
 ```
 
-## Example build-args.txt
+## rootDeviceHints
+
+OCP 4.20's `openshift-install` is picky about `rootDeviceHints`:
+
+| Field | Accepts | Does NOT accept |
+|-------|---------|-----------------|
+| `deviceName` | `/dev/sda`, `/dev/disk/by-path/pci-*` | `/dev/disk/by-id/*` |
+| `wwn` | Raw WWN for SATA (`0x5002538e...`) | NVMe EUI values, full paths |
+
+This lab uses:
+- **NODE0/NODE1 (NVMe):** `deviceName: /dev/disk/by-path/pci-0000:01:00.0-nvme-1`
+- **ARBITER (SATA):** `deviceName: /dev/sda`
+
+To find your by-path values, boot a node from a live ISO and run:
+```bash
+lsblk -o NAME,SIZE,PATH
+ls /dev/disk/by-path/ | grep nvme
+```
+
+## build-args.txt
 
 ```
-RHSM_ORG=your-org-number
-RHSM_AK=your-activation-key
+RHSM_ORG=12868589
+RHSM_AK=ak-rhsm
 PULL_SECRET={"auths":{...your-pull-secret...}}
-SSH_KEY=ssh-ed25519 AAAA... yourname@lab
+SSH_KEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG34z9vorjTwd8cPo0OU3mhC37pr7LVZHFdsBfz91vM9 stephen@lab
 EXTERNAL_INTERFACE=eno1
 INTERNAL_INTERFACE=enp0s20f0u2
 BASE_DNS_ZONE=summit2026.com
-REGISTRY_ADMIN_PASSWORD=your-registry-password
+REGISTRY_ADMIN_PASSWORD=R3dh4t123!
 OPENSHIFT_VERSION=4.20.14
 HOSTNAME=bootstrap
 
@@ -207,24 +227,24 @@ ACP_ROUTER_ADDRESS=10.26.100.1
 
 NODE0_IP_ADDRESS=10.26.100.20
 NODE0_CLUSTER_INTERFACE=eno1
-NODE0_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:01
-NODE0_INSTALL_DEVICE=eui.your-nvme-eui-id
+NODE0_CLUSTER_INTERFACE_MAC_ADDRESS=e8:ff:1e:d3:ed:03
+NODE0_INSTALL_DEVICE=/dev/disk/by-path/pci-0000:01:00.0-nvme-1
 NODE0_STORAGE_INTERFACE=enp6s0f4u2c2
 NODE0_STORAGE_IP_ADDRESS=10.26.108.20
 
 NODE1_IP_ADDRESS=10.26.100.21
 NODE1_CLUSTER_INTERFACE=eno1
-NODE1_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:02
-NODE1_INSTALL_DEVICE=eui.your-nvme-eui-id
+NODE1_CLUSTER_INTERFACE_MAC_ADDRESS=e8:ff:1e:d3:ed:23
+NODE1_INSTALL_DEVICE=/dev/disk/by-path/pci-0000:01:00.0-nvme-1
 NODE1_STORAGE_INTERFACE=enp5s0f4u2c2
 NODE1_STORAGE_IP_ADDRESS=10.26.108.21
 
-NODES_STORAGE_DEVICE=/dev/disk/by-id/nvme-eui.your-storage-nvme-eui
+NODES_STORAGE_DEVICE=/dev/disk/by-id/nvme-eui.000000000000000100a07523456cf2bc
 
 ARBITER_IP_ADDRESS=10.26.100.22
 ARBITER_CLUSTER_INTERFACE=eno1
-ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS=aa:bb:cc:dd:ee:03
-ARBITER_INSTALL_DEVICE=0x-your-wwn-id
+ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS=94:c6:91:a3:84:6b
+ARBITER_INSTALL_DEVICE=/dev/disk/by-id/wwn-0x5002538e406ca627
 ARBITER_STORAGE_INTERFACE=enp0s20f0u2
 ARBITER_STORAGE_IP_ADDRESS=10.26.108.22
 ```
@@ -233,11 +253,11 @@ ARBITER_STORAGE_IP_ADDRESS=10.26.108.22
 
 Boot each node from a RHEL 9 live ISO and run:
 ```bash
-# NVMe drives (use eui. identifiers)
-ls -la /dev/disk/by-id/ | grep nvme-eui
+# NVMe drives - use by-path (openshift-install requires /dev/ or /dev/disk/by-path/)
+ls -la /dev/disk/by-path/ | grep nvme
 
-# SATA drives (use wwn- identifiers, strip the wwn- prefix)
-ls -la /dev/disk/by-id/ | grep wwn-
+# SATA drives - kernel name is fine for single-disk nodes
+lsblk -o NAME,SIZE,MODEL
 ```
 
 ### Getting MAC addresses
