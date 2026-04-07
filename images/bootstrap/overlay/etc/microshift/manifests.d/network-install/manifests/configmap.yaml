@@ -82,7 +82,7 @@ data:
           - name: ARBITER_CLUSTER_INTERFACE
             macAddress: ARBITER_CLUSTER_INTERFACE_MAC_ADDRESS
         rootDeviceHints:
-          deviceName: ARBITER_INSTALL_DEVICE
+          serialNumber: ARBITER_INSTALL_DEVICE
         networkConfig:
           interfaces:
           - name: ARBITER_CLUSTER_INTERFACE
