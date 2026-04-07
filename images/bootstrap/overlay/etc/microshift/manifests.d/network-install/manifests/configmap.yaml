@@ -842,8 +842,6 @@ data:
                   portworx.io/health-check: "skip"
                   portworx.io/preflight-check: "skip"
               spec:
-                network:
-                  dataInterface: NODE0_STORAGE_INTERFACE
                 deleteStrategy:
                   type: UninstallAndWipe
                 image: portworx/oci-monitor:3.5.2
@@ -865,35 +863,30 @@ data:
                     operator: Exists
                     effect: NoSchedule
                 nodes:
-                  # ==========================================
-                  # 1. Primary Node 0 (Data and KVDB member 1)
-                  # ==========================================
                   - selector:
-                      nodeName: "node0"  # Replace with actual hostname
+                      nodeName: "node0"
                     clusterDomain: "site-a"
+                    network:
+                      dataInterface: NODE0_STORAGE_INTERFACE
                     storage:
                       devices:
                         - "/dev/disk/by-partlabel/px-data"
                       systemMetadataDevice: "/dev/disk/by-partlabel/px-metadata"
-                  
-                  # ==========================================
-                  # 2. Primary Node 1 (Data and KVDB member 2)
-                  # ==========================================
                   - selector:
-                      nodeName: "node1"  # Replace with actual hostname
+                      nodeName: "node1"
                     clusterDomain: "site-b"
+                    network:
+                      dataInterface: NODE1_STORAGE_INTERFACE
                     storage:
                       devices:
                         - "/dev/disk/by-partlabel/px-data"
                       systemMetadataDevice: "/dev/disk/by-partlabel/px-metadata"
-
-                  # ==========================================
-                  # 3. Arbiter Node (Storageless KVDB tie-breaker)
-                  # ==========================================
                   - selector:
-                      nodeName: "arbiter"  # Replace with actual Arbiter hostname
+                      nodeName: "arbiter"
                     storageless: true
                     clusterDomain: "witness"
+                    network:
+                      dataInterface: ARBITER_STORAGE_INTERFACE
                     storage:
                       kvdbDevice: "/dev/disk/by-partlabel/px-metadata"
               EOF
