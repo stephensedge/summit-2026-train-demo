@@ -883,12 +883,11 @@ data:
                       systemMetadataDevice: "/dev/disk/by-partlabel/px-metadata"
                   - selector:
                       nodeName: "arbiter"
-                    storageless: true
                     clusterDomain: "witness"
                     network:
                       dataInterface: ARBITER_STORAGE_INTERFACE
                     storage:
-                      kvdbDevice: "/dev/disk/by-partlabel/px-metadata"
+                      devices: []
               EOF
 
               echo "Applying StorageCluster..."
