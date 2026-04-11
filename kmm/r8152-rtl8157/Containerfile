@@ -1,0 +1,17 @@
+ARG DTK_AUTO=registry-registry.apps.bootstrap.summit2026.com/openshift/release@sha256:76c00c934485322bc8d37f0d711d3eeafeececd6fd7f76a145f44d3c3ca17afc
+FROM ${DTK_AUTO} AS builder
+
+ARG KERNEL_FULL_VERSION=5.14.0-570.86.1.el9_6.x86_64
+
+WORKDIR /build/
+COPY r8152-src/ /build/r8152-src/
+RUN cd r8152-src && KERNELDIR=/usr/src/kernels/${KERNEL_FULL_VERSION} make modules && ls -la r8152.ko
+
+FROM registry-registry.apps.bootstrap.summit2026.com/ubi9/ubi-minimal:9.7-1763362218
+
+ARG KERNEL_FULL_VERSION=5.14.0-570.86.1.el9_6.x86_64
+RUN microdnf install -y kmod && microdnf clean all
+RUN mkdir -p /opt/lib/modules/${KERNEL_FULL_VERSION}
+COPY --from=builder /build/r8152-src/r8152.ko /opt/lib/modules/${KERNEL_FULL_VERSION}/r8152.ko
+RUN /usr/sbin/depmod -b /opt ${KERNEL_FULL_VERSION} && \
+    ls -la /opt/lib/modules/${KERNEL_FULL_VERSION}/

@@ -1,0 +1,49 @@
+# KMM resources for the r8152 RTL8157 5G driver on MS-01 storage NICs.
+# Apply with: oc apply -f module.yaml
+# Then label the target nodes:
+#   oc label node <node> storage-nic-driver=r8152-rtl8157 --overwrite
+# IMPORTANT: before labeling a node, manually unload cdc_mbim on it so KMM can
+# remove cdc_ncm cleanly:
+#   ssh core@<node-ip> sudo modprobe -rv cdc_mbim
+# The arbiter is intentionally NOT labeled (RTL8156 chip, in-tree driver is fine).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kmm-module-loader
+  namespace: openshift-kmm
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kmm-module-loader-privileged
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: kmm-module-loader
+    namespace: openshift-kmm
+---
+apiVersion: kmm.sigs.x-k8s.io/v1beta1
+kind: Module
+metadata:
+  name: r8152-rtl8157
+  namespace: openshift-kmm
+spec:
+  moduleLoader:
+    serviceAccountName: kmm-module-loader
+    container:
+      modprobe:
+        moduleName: r8152
+        modulesLoadingOrder:
+          - r8152
+          - cdc_ncm
+      kernelMappings:
+        - regexp: '^.+$'
+          containerImage: registry-registry.apps.bootstrap.summit2026.com/kmm/r8152-rtl8157:${KERNEL_FULL_VERSION}-v2
+          inTreeModulesToRemove:
+            - cdc_ncm
+  selector:
+    storage-nic-driver: r8152-rtl8157
