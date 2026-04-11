@@ -31,7 +31,9 @@ data:
                 - ip: NODE0_IP_ADDRESS
                   prefix-length: 24
               dhcp: false
-          - name: NODE0_STORAGE_INTERFACE
+          - name: storage0
+            identifier: mac-address
+            mac-address: NODE0_STORAGE_INTERFACE_MAC_ADDRESS
             type: ethernet
             state: down
           dns-resolver:
@@ -63,7 +65,9 @@ data:
                 - ip: NODE1_IP_ADDRESS
                   prefix-length: 24
               dhcp: false
-          - name: NODE1_STORAGE_INTERFACE
+          - name: storage0
+            identifier: mac-address
+            mac-address: NODE1_STORAGE_INTERFACE_MAC_ADDRESS
             type: ethernet
             state: down
           dns-resolver:
@@ -95,7 +99,9 @@ data:
                 - ip: ARBITER_IP_ADDRESS
                   prefix-length: 24
               dhcp: false
-          - name: ARBITER_STORAGE_INTERFACE
+          - name: storage0
+            identifier: mac-address
+            mac-address: ARBITER_STORAGE_INTERFACE_MAC_ADDRESS
             type: ethernet
             state: down
           dns-resolver:
@@ -447,6 +453,51 @@ data:
         prometheusK8s:
            retention: 24h
 
+  07-master-storage-nic-rename.yaml: |
+    ---
+    apiVersion: machineconfiguration.openshift.io/v1
+    kind: MachineConfig
+    metadata:
+      labels:
+        machineconfiguration.openshift.io/role: master
+      name: 07-master-storage-nic-rename
+    spec:
+      config:
+        ignition:
+          version: 3.5.0
+        storage:
+          files:
+            - path: /etc/systemd/network/10-node0-storage0.link
+              mode: 0644
+              overwrite: true
+              contents:
+                source: data:text/plain;charset=utf-8;base64,NODE0_STORAGE_LINK_B64
+            - path: /etc/systemd/network/10-node1-storage0.link
+              mode: 0644
+              overwrite: true
+              contents:
+                source: data:text/plain;charset=utf-8;base64,NODE1_STORAGE_LINK_B64
+
+  08-arbiter-storage-nic-rename.yaml: |
+    ---
+    apiVersion: machineconfiguration.openshift.io/v1
+    kind: MachineConfig
+    metadata:
+      labels:
+        machineconfiguration.openshift.io/role: arbiter
+      name: 08-arbiter-storage-nic-rename
+    spec:
+      config:
+        ignition:
+          version: 3.5.0
+        storage:
+          files:
+            - path: /etc/systemd/network/10-arbiter-storage0.link
+              mode: 0644
+              overwrite: true
+              contents:
+                source: data:text/plain;charset=utf-8;base64,ARBITER_STORAGE_LINK_B64
+
   100-portworx-namespace.yaml: |
     ---
     apiVersion: v1
@@ -657,10 +708,12 @@ data:
                 name: node0-storage-interface
               spec:
                 nodeSelector:
-                  kubernetes.io/hostname: "node0" 
+                  kubernetes.io/hostname: "node0"
                 desiredState:
                   interfaces:
-                    - name: NODE0_STORAGE_INTERFACE
+                    - name: storage0
+                      identifier: mac-address
+                      mac-address: NODE0_STORAGE_INTERFACE_MAC_ADDRESS
                       type: ethernet
                       state: up
                       ipv4:
@@ -676,10 +729,12 @@ data:
                 name: node1-storage-interface
               spec:
                 nodeSelector:
-                  kubernetes.io/hostname: "node1" 
+                  kubernetes.io/hostname: "node1"
                 desiredState:
                   interfaces:
-                    - name: NODE1_STORAGE_INTERFACE
+                    - name: storage0
+                      identifier: mac-address
+                      mac-address: NODE1_STORAGE_INTERFACE_MAC_ADDRESS
                       type: ethernet
                       state: up
                       ipv4:
@@ -695,10 +750,12 @@ data:
                 name: arbiter-storage-interface
               spec:
                 nodeSelector:
-                  kubernetes.io/hostname: "arbiter" 
+                  kubernetes.io/hostname: "arbiter"
                 desiredState:
                   interfaces:
-                    - name: ARBITER_STORAGE_INTERFACE
+                    - name: storage0
+                      identifier: mac-address
+                      mac-address: ARBITER_STORAGE_INTERFACE_MAC_ADDRESS
                       type: ethernet
                       state: up
                       ipv4:
@@ -867,7 +924,7 @@ data:
                       nodeName: "node0"
                     clusterDomain: "site-a"
                     network:
-                      dataInterface: NODE0_STORAGE_INTERFACE
+                      dataInterface: storage0
                     storage:
                       devices:
                         - "/dev/disk/by-partlabel/px-data"
@@ -876,7 +933,7 @@ data:
                       nodeName: "node1"
                     clusterDomain: "site-b"
                     network:
-                      dataInterface: NODE1_STORAGE_INTERFACE
+                      dataInterface: storage0
                     storage:
                       devices:
                         - "/dev/disk/by-partlabel/px-data"
@@ -885,8 +942,9 @@ data:
                       nodeName: "arbiter"
                     clusterDomain: "witness"
                     network:
-                      dataInterface: ARBITER_STORAGE_INTERFACE
+                      dataInterface: storage0
                     storage:
+                      kvdbDevice: "/dev/disk/by-partlabel/px-metadata"
                       devices: []
               EOF
 
