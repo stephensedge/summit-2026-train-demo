@@ -42,7 +42,7 @@ spec:
           - cdc_ncm
       kernelMappings:
         - regexp: '^.+$'
-          containerImage: registry-registry.apps.bootstrap.summit2026.com/kmm/r8152-rtl8157:${KERNEL_FULL_VERSION}-v2
+          containerImage: registry-registry.apps.bootstrap.summit2026.com/kmm/r8152-rtl8157:${KERNEL_FULL_VERSION}-v3
           inTreeModulesToRemove:
             - cdc_ncm
   selector:
