@@ -7,10 +7,10 @@ import paho.mqtt.publish as publish
 def main():
     parser = argparse.ArgumentParser(description="Send commands to the MQTT motor controller.")
     
-    # Require one of the specific commands
+    # Strictly enforce the allowed relative commands
     parser.add_argument(
         "command", 
-        choices=["start", "stop", "fast", "slow"], 
+        choices=["start", "stop", "faster", "slower", "forward", "reverse"], 
         help="The command to send to the motor."
     )
     
@@ -24,7 +24,6 @@ def main():
     print(f"Sending '{args.command}' to topic '{args.topic}' at {args.broker}:{args.port}...")
 
     try:
-        # publish.single handles connect, send, and disconnect cleanly
         publish.single(
             topic=args.topic,
             payload=args.command,
