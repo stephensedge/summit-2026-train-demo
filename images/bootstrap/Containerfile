@@ -137,6 +137,7 @@ RUN usermod -aG wheel ansible
 RUN --mount=type=secret,id=vnc-password cat /run/secrets/vnc-password | vncpasswd -f > /usr/share/ansible-vnc-defaults/passwd
 RUN firewall-offline-cmd --add-service=vnc-server --zone=external
 RUN systemctl enable vncserver@:1.service
+RUN dconf update
 
 # Microshift setup
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
