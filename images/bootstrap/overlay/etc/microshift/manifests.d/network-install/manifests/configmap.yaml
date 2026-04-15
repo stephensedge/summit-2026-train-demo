@@ -904,4 +904,110 @@ data:
                 sleep 15
               done
               
-              echo "StorageCluster applied successfully. Post-install job complete."
+              echo "StorageCluster applied successfully.
+              
+              echo "Preparing ArgoCD manifest..."
+              cat <<EOF > /tmp/argocd.yaml
+              ---
+              apiVersion: argoproj.io/v1beta1
+              kind: ArgoCD
+              metadata:
+                name: openshift-gitops
+                namespace: openshift-gitops
+              spec:
+                resourceHealthChecks:
+                  - check: |
+                      if obj.metadata.name == "flightctl-db-migration-1-dryrun" then
+                        -- If the Job name is 'flightctl-db-migration-1-dryrun', always return a Healthy status immediately.
+                        return {status = "Healthy", message = "Bypassing health check for specific Job 'flightctl-db-migration-1-dryrun' as requested."}
+                      end
+
+                      -- Standard logic for all other Jobs: check for completion or failure
+                      if obj.status and obj.status.conditions then
+                        for i, condition in ipairs(obj.status.conditions) do
+                          if condition.type == "Complete" and condition.status == "True" then
+                            return {status = "Healthy", message = "Job completed successfully"}
+                          end
+                          if condition.type == "Failed" and condition.status == "True" then
+                            return {status = "Degraded", message = condition.message}
+                          end
+                        end
+                      end
+
+                      -- Default to Progressing if not complete/failed/ignored
+                      return {status = "Progressing", message = "Job is running or waiting"}
+                    group: batch
+                    kind: Job
+              EOF
+              echo "Applying ArgoCD manifest..."
+              while ! oc apply -f /tmp/argocd.yaml; do
+                echo "Failed to apply ArgoCD manifest (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+              
+              echo "ArgoCD manifest applied successfully.
+
+              echo "Preparing RHEM manifest..."
+              cat <<EOF > /tmp/rhem.yaml
+              ---
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: rhem
+                namespace: openshift-gitops
+                labels:
+                  application: rhem
+                finalizers:
+                  - resources-finalizer.argocd.argoproj.io
+                  - post-delete-finalizer.argocd.argoproj.io
+                  - post-delete-finalizer.argocd.argoproj.io/cleanup
+              spec:
+                syncPolicy:
+                  syncOptions:
+                    - CreateNamespace=true 
+                  automated:
+                    prune: true
+                destination:
+                  namespace: rhem
+                  server: 'https://kubernetes.default.svc'
+                ignoreDifferences:
+                  - group: batch
+                    jsonPointers:
+                      - /spec
+                      - /metadata/annotations
+                      - /metadata/labels
+                    kind: Job
+                    name: flightctl-db-migration-1-dryrun
+                project: default
+                source:
+                  chart: flightctl
+                  repoURL: quay.io/flightctl/charts
+                  targetRevision: 1.1.0
+                  helm:
+                    parameters:
+                      - name: global.baseDomain
+                        value: fctl.rhem.apps.acp.BASE_DNS_ZONE
+                      - forceString: true
+                        name: global.enableOpenShiftExtensions
+                        value: 'true'
+                      - forceString: true
+                        name: global.enableMulticlusterExtensions
+                        value: 'false'
+                      - name: global.auth.openshift.authorizationUrl
+                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/authorize'
+                      - name: global.auth.openshift.tokenUrl
+                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/token'
+                      - name: global.auth.openshift.issuer
+                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/authorize'
+                      - name: global.generateCertificates
+                        value: builtin
+                      - name: global.storageClassName
+                        value: px-csi-replicated
+              EOF
+
+              echo "Applying RHEM manifest..."
+              while ! oc apply -f /tmp/rhem.yaml; do
+                echo "Failed to apply RHEM manifest (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+              echo "Post-install job complete."
