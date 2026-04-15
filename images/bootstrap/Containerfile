@@ -134,10 +134,12 @@ ADD overlay/ /
 RUN useradd -M -s /bin/bash ansible
 RUN --mount=type=secret,id=ansible-user cat /run/secrets/ansible-user | chpasswd
 RUN usermod -aG wheel ansible
-RUN --mount=type=secret,id=vnc-password cat /run/secrets/vnc-password | vncpasswd -f > /usr/share/ansible-vnc-defaults/passwd
+RUN --mount=type=secret,id=vnc-password cat /run/secrets/vnc-password | vncpasswd -f > /etc/vnc/passwd
+RUN chmod 0600 /etc/vnc/passwd
+RUN chown ansible:ansible /etc/vnc/passwd
 RUN firewall-offline-cmd --add-service=vnc-server --zone=external
-RUN systemctl enable vncserver@:1.service
 RUN dconf update
+RUN systemctl enable x0vncserver.service
 
 # Microshift setup
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
@@ -217,6 +219,7 @@ RUN systemctl enable load-images.service
 
 ## Set graphical target
 RUN systemctl set-default graphical.target
+RUN systemctl enable gdm.service
 RUN systemctl enable cockpit.socket
 
 # Set hostname

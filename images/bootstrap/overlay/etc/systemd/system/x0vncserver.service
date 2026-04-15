@@ -1,0 +1,16 @@
+[Unit]
+Description=TigerVNC x0vncserver for active local session
+After=display-manager.service
+Requires=display-manager.service
+
+[Service]
+Type=simple
+User=ansible
+Environment=XAUTHORITY=/home/ansible/.Xauthority
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/x0vncserver -display :0 -rfbauth /etc/vnc/passwd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
