@@ -2,7 +2,7 @@
 replicaCount: 1
 
 image:
-  repository: eclipse-mosquitto
+  repository: docker.io/library/eclipse-mosquitto
   tag: "2.0"
   pullPolicy: IfNotPresent
 
@@ -13,6 +13,7 @@ mosquitto:
 service:
   type: LoadBalancer
   port: 1883
+  targetPort: 1883
   loadBalancerIP: 192.168.100.30
 
 # The specific IPAddressPool configured in MetalLB to pull the IP from
