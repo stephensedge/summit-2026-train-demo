@@ -26,7 +26,7 @@ data:
             - name: openshift-gitops-operator
               channels:
                 - name: latest
-            - name; metallb-operator
+            - name: metallb-operator
               channels:
                 - name: stable
       additionalImages:
