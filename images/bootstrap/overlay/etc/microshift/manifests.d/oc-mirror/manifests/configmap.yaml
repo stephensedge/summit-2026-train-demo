@@ -26,6 +26,9 @@ data:
             - name: openshift-gitops-operator
               channels:
                 - name: latest
+            - name; metallb-operator
+              channels:
+                - name: stable
       # helm:
       #   repositories:
       #     - name: harbor
