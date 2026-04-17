@@ -744,7 +744,78 @@ data:
               oc patch subscription kubernetes-nmstate-operator -n openshift-nmstate --type merge -p '{"spec":{"installPlanApproval":"Manual"}}'
 
               echo "Operator version pinned."
+  9905-postinstall-metallb.yaml: |
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: install-metallb
+      namespace: post-install
+    spec:
+      template:
+        spec:
+          serviceAccountName: post-install-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: installer
+            image: registry.redhat.io/openshift4/ose-cli:latest
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
 
+              echo "Waiting for CRDs to be available..."
+              
+              for crd in metallbs.metallb.io ipaddresspools.metallb.io l2advertisements.metallb.io; do
+                echo "Checking $crd..."
+                until oc get crd $crd >/dev/null 2>&1; do
+                  echo "Waiting for CRD $crd to be registered by the Operator..."
+                  sleep 15
+                done
+              done
+
+              echo "MetalLB CRDs found, preparing MetalLB objects..."
+              cat <<EOF > /tmp/metallb.yaml
+              ---
+              apiVersion: metallb.io/v1beta1
+              kind: MetalLB
+              metadata:
+                name: metallb
+                namespace: metallb-system
+              ---
+              apiVersion: metallb.io/v1beta1
+              kind: IPAddressPool
+              metadata:
+                name: mqtt-pool
+                namespace: metallb-system
+              spec:
+                addresses:
+                - 192.168.100.30/32
+                autoAssign: true
+              ---
+              apiVersion: metallb.io/v1beta1
+              kind: L2Advertisement
+              metadata:
+                name: mqtt-l2-advertisement
+                namespace: metallb-system
+              spec:
+                ipAddressPools:
+                - mqtt-pool
+              EOF
+
+              echo "Applying MetalLB manifests..."
+              while ! oc apply -f /tmp/metallb.yaml; do
+                echo "Failed to apply MetalLB manifests (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+              echo "MetalLB manifests applied successfully."
+
+              echo "Pinning operator version..."
+
+              oc patch subscription metallb-operator -n metallb-system --type merge -p '{"spec":{"installPlanApproval":"Manual"}}'
+
+              echo "Operator version pinned."
   9999-postinstall-job.yaml: |
     ---
     apiVersion: batch/v1
