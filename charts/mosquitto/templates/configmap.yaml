@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-config
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+data:
+  mosquitto.conf: |
+    listener {{ .Values.service.port }} 0.0.0.0
+    allow_anonymous {{ .Values.mosquitto.allowAnonymous }}
