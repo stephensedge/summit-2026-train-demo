@@ -1004,7 +1004,7 @@ data:
                 sleep 15
               done
               
-              echo "StorageCluster applied successfully.
+              echo "StorageCluster applied successfully."
               
               echo "Preparing ArgoCD manifest..."
               cat <<EOF > /tmp/argocd.yaml
@@ -1045,7 +1045,7 @@ data:
                 sleep 15
               done
               
-              echo "ArgoCD manifest applied successfully.
+              echo "ArgoCD manifest applied successfully."
 
               echo "Preparing RHEM manifest..."
               cat <<EOF > /tmp/rhem.yaml
