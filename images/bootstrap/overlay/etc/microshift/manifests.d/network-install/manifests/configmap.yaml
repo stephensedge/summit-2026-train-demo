@@ -1080,9 +1080,9 @@ data:
                     name: flightctl-db-migration-1-dryrun
                 project: default
                 source:
-                  chart: flightctl
-                  repoURL: quay.io/flightctl/charts
-                  targetRevision: 1.1.0
+                  chart: redhat-rhem
+                  repoURL: quay.io/jswanson
+                  targetRevision: 1.1.1
                   helm:
                     parameters:
                       - name: global.baseDomain
@@ -1110,4 +1110,42 @@ data:
                 echo "Failed to apply RHEM manifest (API might be temporarily down). Retrying in 15s..."
                 sleep 15
               done
+
+              echo "Preparing mqtt manifest..."
+              cat <<EOF > /tmp/mqtt.yaml
+              ---
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: mosquitto
+                namespace: openshift-gitops
+                labels:
+                  application: mosquitto
+                finalizers:
+                  - resources-finalizer.argocd.argoproj.io
+                  - post-delete-finalizer.argocd.argoproj.io
+                  - post-delete-finalizer.argocd.argoproj.io/cleanup
+              spec:
+                syncPolicy:
+                  syncOptions:
+                    - CreateNamespace=true 
+                  automated:
+                    prune: true
+                destination:
+                  namespace: mqtt
+                  server: 'https://kubernetes.default.svc'
+                project: default
+                source:
+                  chart: mosquitto
+                  repoURL: quay.io/jswanson
+                  targetRevision: 0.1.0
+                  helm:
+              EOF
+
+              echo "Applying mqtt manifest..."
+              while ! oc apply -f /tmp/mqtt.yaml; do
+                echo "Failed to apply MQTT manifest (API might be temporarily down). Retrying in 15s..."
+                sleep 15
+              done
+
               echo "Post-install job complete."
