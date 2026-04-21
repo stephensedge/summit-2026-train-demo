@@ -450,7 +450,7 @@ data:
           enabled: false
         prometheusK8s:
            retention: 24h
-  10-redhat-operators-mirrored-catalogsource.yaml:
+  10-redhat-operators-mirrored-catalogsource.yaml: |
     ---
     apiVersion: operators.coreos.com/v1alpha1
     kind: CatalogSource
@@ -460,11 +460,11 @@ data:
       name: mirror-redhat-operator-index-v4-20
       namespace: openshift-marketplace
     spec:
-      image: registry-registry.apps.bootstrap.BASE_DNS_ZONEredhat/redhat-operator-index:v4.20
+      image: registry-registry.apps.bootstrap.BASE_DNS_ZONE/redhat/redhat-operator-index:v4.20
       sourceType: grpc
       displayName: Mirrored Red Hat Operators
       publisher: Red Hat
-  11-certified-operators-mirrored-catalogsource.yaml:
+  11-certified-operators-mirrored-catalogsource.yaml: |
     ---
     apiVersion: operators.coreos.com/v1alpha1
     kind: CatalogSource
