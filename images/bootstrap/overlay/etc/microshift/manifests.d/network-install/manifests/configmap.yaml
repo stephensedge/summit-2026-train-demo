@@ -497,7 +497,7 @@ data:
       channel: stable
       installPlanApproval: Automatic
       name: portworx-certified
-      source: certified-operators
+      source: mirror-certified-operator-index-v4-20
       sourceNamespace: openshift-marketplace
       startingCSV: portworx-operator.v25.6.1
   400-nmstate-namespace.yaml: |
@@ -537,7 +537,7 @@ data:
       channel: stable
       installPlanApproval: Automatic
       name: kubernetes-nmstate-operator
-      source: redhat-operators
+      source: mirror-redhat-operator-index-v4-20
       sourceNamespace: openshift-marketplace
       startingCSV: kubernetes-nmstate-operator.4.20.0-202602180432
   600-gitops-namespace.yaml: |
@@ -568,7 +568,7 @@ data:
       channel: latest
       installPlanApproval: Automatic
       name: openshift-gitops-operator
-      source: redhat-operators
+      source: mirror-redhat-operator-index-v4-20
       sourceNamespace: openshift-marketplace
       startingCSV: openshift-gitops-operator.v1.19.2
   603-gitops-rbac.yaml: |
@@ -636,7 +636,7 @@ data:
     spec:
       channel: stable
       name: metallb-operator
-      source: redhat-operators
+      source: mirror-redhat-operator-index-v4-20
       sourceNamespace: openshift-marketplace
   9900-postinstall-namespace.yaml: |
     ---
