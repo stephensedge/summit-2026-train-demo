@@ -195,6 +195,10 @@ data:
       - mirrors:
         - registry-registry.apps.bootstrap.BASE_DNS_ZONE/rhacm2
         source: registry.redhat.io/rhacm2
+      - mirrors:
+        - registry-registry.apps.bootstrap.BASE_DNS_ZONE/jswanson
+        source: quay.io/jswanson
+
 ---
 apiVersion: v1
 kind: ConfigMap
