@@ -1,6 +1,6 @@
 ---
 dns:
-  baseDomain: bootstrap.summit2026.com
+  baseDomain: bootstrap.BASE_DNS_ZONE
 node:
   nodeIP: 192.168.100.1
   advertiseAddress: "192.168.100.1/32"
