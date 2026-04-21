@@ -1131,6 +1131,8 @@ data:
                         value: builtin
                       - name: global.storageClassName
                         value: px-csi-replicated
+                      - name: global.auth.insecureSkipTlsVerify
+                        value: true
               EOF
 
               echo "Applying RHEM manifest..."
@@ -1151,8 +1153,6 @@ data:
                   application: mosquitto
                 finalizers:
                   - resources-finalizer.argocd.argoproj.io
-                  - post-delete-finalizer.argocd.argoproj.io
-                  - post-delete-finalizer.argocd.argoproj.io/cleanup
               spec:
                 syncPolicy:
                   syncOptions:
