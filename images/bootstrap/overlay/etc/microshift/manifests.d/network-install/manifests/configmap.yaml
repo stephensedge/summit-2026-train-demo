@@ -499,7 +499,6 @@ data:
       name: portworx-certified
       source: mirror-certified-operator-index-v4-20
       sourceNamespace: openshift-marketplace
-      startingCSV: portworx-operator.v25.6.1
   400-nmstate-namespace.yaml: |
     ---
     apiVersion: v1
@@ -539,7 +538,6 @@ data:
       name: kubernetes-nmstate-operator
       source: mirror-redhat-operator-index-v4-20
       sourceNamespace: openshift-marketplace
-      startingCSV: kubernetes-nmstate-operator.4.20.0-202602180432
   600-gitops-namespace.yaml: |
     ---
     apiVersion: v1
@@ -570,7 +568,6 @@ data:
       name: openshift-gitops-operator
       source: mirror-redhat-operator-index-v4-20
       sourceNamespace: openshift-marketplace
-      startingCSV: openshift-gitops-operator.v1.19.2
   603-gitops-rbac.yaml: |
     ---
     kind: ClusterRoleBinding
@@ -1117,7 +1114,7 @@ data:
                   helm:
                     parameters:
                       - name: global.baseDomain
-                        value: fctl.rhem.apps.acp.BASE_DNS_ZONE
+                        value: rhem.rhem.apps.acp.BASE_DNS_ZONE
                       - forceString: true
                         name: global.enableOpenShiftExtensions
                         value: 'true'
@@ -1125,11 +1122,11 @@ data:
                         name: global.enableMulticlusterExtensions
                         value: 'false'
                       - name: global.auth.openshift.authorizationUrl
-                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/authorize'
+                        value: 'https://oauth-openshift.apps.acp.BASE_DNS_ZONE/oauth/authorize'
                       - name: global.auth.openshift.tokenUrl
-                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/token'
+                        value: 'https://oauth-openshift.apps.acp.BASE_DNS_ZONE/oauth/token'
                       - name: global.auth.openshift.issuer
-                        value: 'https://oauth-openshift.apps.BASE_DNS_ZONE/oauth/authorize'
+                        value: 'https://oauth-openshift.apps.acp.BASE_DNS_ZONE/oauth/authorize'
                       - name: global.generateCertificates
                         value: builtin
                       - name: global.storageClassName
