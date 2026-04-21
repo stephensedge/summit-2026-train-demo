@@ -74,6 +74,7 @@ RUN dnf \
     helm \
     btop \
     minicom \
+    nmap \
     https://github.com/derailed/k9s/releases/download/v0.50.18/k9s_linux_amd64.rpm \
     && dnf clean all \
     && rm -rf /var/{cache,log} /var/lib/{dnf,rhsm}
@@ -144,6 +145,7 @@ RUN systemctl enable x0vncserver.service
 # Microshift setup
 RUN sed -i "s/PULL_SECRET/${PULL_SECRET}/g" /etc/crio/openshift-pull-secret
 RUN sed -i "s/INTERNAL_INTERFACE/${INTERNAL_INTERFACE}/g" /etc/microshift/ovn.yaml
+RUN sed -i "s/BASE_DNS_ZONE/${BASE_DNS_ZONE}/g" /etc/microshift/config.yaml
 RUN chmod 0600 /etc/crio/openshift-pull-secret
 RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
     firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
