@@ -1,6 +1,7 @@
-To create an OCI artificat package (used by RHEM Software Catalog):
+# To create an OCI artificat package (used by RHEM Software Catalog):
 
-Create inference.container file:
+## Create inference.container file:
+```
 cat > inference.container <<'EOF'
 [Unit]
 Description=Summit 2026 Train Demo Inference
@@ -30,9 +31,16 @@ Restart=always
 [Install]
 WantedBy=default.target
 EOF
-
+```
+---
+## Create artifact and push
+```
 podman artifact add quay.io/kenosborn/inference-quadlet:scv1 inference.container
 podman artifact push quay.io/kenosborn/inference-quadlet:scv1
-
+```
+---
+## Misc
 In the catalog item, call:
+```
 uri: quay.io/kenosborn/inference-quadlet:scv1
+```
