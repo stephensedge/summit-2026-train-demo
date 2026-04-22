@@ -27,6 +27,10 @@ spec:
                 Description=Inference(Edge AI train control)
                 After=network-online.target
                 Wants=network-online.target
+                
+                [Service]
+                Restart=on-failure
+                Restart=10
 
                 [Container]
                 Image=quay.io/kenosborn/inference-train-demo:v2
