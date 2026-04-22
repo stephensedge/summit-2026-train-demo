@@ -34,6 +34,7 @@ data:
             - name: portworx-certified
               channels:
                 - name: stable
+                  maxVersion: 25.6.1
       additionalImages:
         - name: registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218
         - name: registry.redhat.io/openshift4/ose-cli-rhel9:v4.20.0
@@ -69,6 +70,8 @@ data:
         - name: registry.k8s.io/sig-storage/csi-resizer:v1.14.0
         - name: registry.k8s.io/sig-storage/csi-snapshotter:v8.3.0
         - name: registry.k8s.io/sig-storage/snapshot-controller:v8.3.0
+        # - name: registry.k8s.io/kube-scheduler-amd64:v1.33.6
+        # - name: registry.k8s.io/pause:3.1
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -83,7 +86,7 @@ data:
     REGISTRY_INTERNAL_URL="https://harbor.registry.svc.cluster.local"
     REGISTRY="registry-registry.apps.bootstrap.BASE_DNS_ZONE"
     REGISTRY_USERNAME="admin"
-    REGISTRY_PASSWORD="REGISTRY_ADMIN_PASSWORD"
+    REGISTRY_PASSWORD='REGISTRY_ADMIN_PASSWORD'
     MAPPING_FILE="/tmp/scratch/working-dir/dry-run/mapping.txt"
     CLUSTER_RESOURCES_DIR="/tmp/scratch/working-dir/cluster-resources"
 
